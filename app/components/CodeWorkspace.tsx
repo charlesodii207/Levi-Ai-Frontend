@@ -173,7 +173,7 @@ const LANG_RULES: LangRule[] = [
   {
     name: "SQL",
     patterns: [
-      /\bSELECT\b.*\bFROM\b/is,
+      /SELECT[\s\S]*FROM/i,
       /\bINSERT\s+INTO\b/i,
       /\bCREATE\s+TABLE\b/i,
       /\bWHERE\b/i,
