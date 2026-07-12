@@ -1,26 +1,131 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-base: #080C14;
+  --bg-surface: #0D1420;
+  --bg-elevated: #111827;
+
+  --gold: #D4AF37;
+  --gold-light: #F4D46B;
+  --gold-dim: rgba(212,175,55,0.15);
+
+  --blue: #0057FF;
+  --blue-light: #3B82F6;
+  --blue-dim: rgba(0,87,255,0.12);
+
+  --text-primary: #F0F4FF;
+  --text-secondary: #8B9CC4;
+  --text-muted: #3D4F72;
+
+  --border: rgba(255,255,255,0.07);
+  --border-blue: rgba(59,130,246,0.2);
+  --border-gold: rgba(212,175,55,0.2);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+a {
+  text-decoration: none;
+  color: inherit;
 }
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1E2D4A; border-radius: 10px; }
+
+::selection { background: #D4AF37; color: black; }
+
+/* ── Markdown ─────────────────────────────────────────────────────────── */
+
+.markdown-body {
+  color: #C8D4F0;
+  line-height: 1.75;
+  font-size: 15px;
+}
+
+.markdown-body p { margin-bottom: 12px; }
+.markdown-body p:last-child { margin-bottom: 0; }
+
+.markdown-body h1, .markdown-body h2,
+.markdown-body h3, .markdown-body h4 {
+  color: #F0F4FF;
+  font-weight: 700;
+  margin: 20px 0 10px;
+}
+
+.markdown-body h1 { font-size: 22px; }
+.markdown-body h2 { font-size: 18px; }
+.markdown-body h3 { font-size: 16px; }
+
+.markdown-body code {
+  background: #0D1420;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #60A5FA;
+  border: 1px solid rgba(59,130,246,0.15);
+  font-family: "Fira Code", monospace;
+}
+
+.markdown-body pre {
+  background: #080C14;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 18px 20px;
+  overflow-x: auto;
+  margin: 14px 0;
+}
+
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: #C8D4F0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.markdown-body ul, .markdown-body ol {
+  padding-left: 22px;
+  margin-bottom: 12px;
+}
+
+.markdown-body li { margin-bottom: 6px; color: #A8B8D8; }
+
+.markdown-body blockquote {
+  border-left: 3px solid #0057FF;
+  padding: 10px 16px;
+  margin: 14px 0;
+  background: rgba(0,87,255,0.06);
+  border-radius: 0 8px 8px 0;
+  color: #8B9CC4;
+}
+
+.markdown-body table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+.markdown-body th { background: rgba(0,87,255,0.1); color: #F0F4FF; padding: 10px 14px; text-align: left; font-weight: 600; border: 1px solid rgba(255,255,255,0.07); }
+.markdown-body td { padding: 9px 14px; border: 1px solid rgba(255,255,255,0.05); color: #A8B8D8; }
+.markdown-body tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+.markdown-body a { color: #60A5FA; text-decoration: underline; text-underline-offset: 3px; }
+.markdown-body strong { color: #F0F4FF; font-weight: 600; }
+.markdown-body em { color: #D4AF37; }
+.markdown-body hr { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 20px 0; }
