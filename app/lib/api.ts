@@ -1,4 +1,4 @@
-const BASE_URL = "http://127.0.0.1:8000";
+const BASE_URL = "https://levi-ai-1ug2.onrender.com";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -50,6 +50,20 @@ export async function login(data: { email: string; password: string }) {
 
 export async function getMe() {
   return request<{ id: number; username: string; email: string }>("/me");
+}
+
+export async function verifyEmail(data: { email: string; otp: string }) {
+  return request("/verify-email", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function resendOtp(data: { email: string }) {
+  return request("/resend-otp", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 // ── Conversations ─────────────────────────────────────────────────────────────

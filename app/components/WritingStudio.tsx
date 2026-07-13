@@ -14,7 +14,7 @@ type Tool = "landing" | "article" | "social" | "email" | "creative";
 
 async function callLevi(message: string): Promise<string> {
   const token = localStorage.getItem("levi_token");
-  const res = await fetch("http://127.0.0.1:8000/chat/", {
+  const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
