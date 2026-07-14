@@ -1,26 +1,111 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { Check, ArrowRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Check, ArrowRight, ChevronDown, Mail, Sparkles,
+  Zap, LayoutGrid, ShieldCheck, Gauge, Download,
+} from "lucide-react";
 import { LEVI_MODES } from "./components/Sidebar";
 import { isLoggedIn } from "./lib/auth";
+import SplashScreen from "./components/SplashScreen";
+
+// ---------------------------------------------------------------------------
+// Content data
+// ---------------------------------------------------------------------------
+
+const NAV_LINKS = [
+  { label: "Home", href: "#home" },
+  { label: "About", href: "#about" },
+  { label: "Services", href: "#services" },
+  { label: "Why Levi", href: "#why" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Contact", href: "#contact" },
+];
+
+const MODE_SPECS: Record<string, string[]> = {
+  coding: [
+    "Paste existing code, or describe what to build from scratch",
+    "Explain, Debug, Optimize, Convert, Test, or Comment any code",
+    "Automatic language detection across 16+ languages",
+    "Dedicated code editor workspace, not a plain chat box",
+  ],
+  crypto: [
+    "Live market data pulled in real time, not guessed",
+    "AI trend analysis with an honest confidence score",
+    "Entry, Stop Loss, and Take Profit levels calculated for you",
+    "Multi-timeframe confluence + optional auto-refresh",
+  ],
+  business: [
+    "Full business plan generation, section by section",
+    "SWOT analysis and competitor research",
+    "Financial projections and pricing strategy",
+    "Pitch deck outlines built for investors",
+  ],
+  writing: [
+    "Creative writing, storytelling, and fiction",
+    "Copywriting for ads, landing pages, and email",
+    "Blog posts, outlines, and content calendars",
+    "Editing, tone adjustment, and proofreading",
+  ],
+  research: [
+    "Topic Deep Dive — structured breakdowns on anything",
+    "Comparison Analyst — side-by-side tables with a verdict",
+    "Fact Checker — accuracy assessment, not just a summary",
+    "Every result is copyable and downloadable",
+  ],
+};
+
+const WHY_LEVI = [
+  {
+    icon: <LayoutGrid size={20} />,
+    title: "Purpose-built Modes",
+    description: "Not one generic chat trying to do everything. Each mode is its own workspace with tools tailored to the job.",
+  },
+  {
+    icon: <Gauge size={20} />,
+    title: "Live data where it matters",
+    description: "Crypto mode pulls real market data. Research mode can fact-check against real claims. No made-up numbers presented as fact.",
+  },
+  {
+    icon: <Download size={20} />,
+    title: "Real deliverables, not just chat",
+    description: "Copy or download structured results — reports, comparisons, code — instead of scrolling through a wall of chat bubbles.",
+  },
+  {
+    icon: <Zap size={20} />,
+    title: "Fast, premium interface",
+    description: "Built to feel instant and get out of your way, not to look like a bolted-together prototype.",
+  },
+  {
+    icon: <ShieldCheck size={20} />,
+    title: "Honest about limits",
+    description: "Confidence scores, accuracy assessments, and disclaimers are built in where it counts — not hidden or oversold.",
+  },
+  {
+    icon: <Sparkles size={20} />,
+    title: "Always adding more",
+    description: "Levi isn't capped at 5 skills. More specialized modes are on the way as the platform grows.",
+  },
+];
 
 const PRICING_TIERS = [
   {
     name: "Free",
     price: "$0",
     period: "forever",
-    description: "Try Levi across every mode, no card required.",
+    description: "Everything you need to try Levi across every mode.",
     features: [
       "Access to all 5 modes",
       "Limited messages per day",
       "Standard response speed",
       "Conversation history",
     ],
-    highlighted: false,
-    cta: "Get Started",
+    highlighted: true,
+    available: true,
+    cta: "Get Started Free",
   },
   {
     name: "Pro",
@@ -31,14 +116,14 @@ const PRICING_TIERS = [
       "Everything in Free",
       "Unlimited messages",
       "Priority response speed",
-      "Full Code, Crypto, Research workspaces",
-      "Download & export results",
+      "Full workspace exports",
     ],
-    highlighted: true,
-    cta: "Start Free Trial",
+    highlighted: false,
+    available: false,
+    cta: "Coming Soon",
   },
   {
-    name: "Team",
+    name: "Prime",
     price: "Custom",
     period: "",
     description: "For teams that want Levi across the whole company.",
@@ -49,24 +134,61 @@ const PRICING_TIERS = [
       "Priority support",
     ],
     highlighted: false,
-    cta: "Contact Us",
+    available: false,
+    cta: "Coming Soon",
   },
 ];
 
+const FAQS = [
+  {
+    q: "What is Levi AI?",
+    a: "Levi is an AI assistant built around specialized Modes — Coding, Crypto & Forex, Business, Writing, and Research — each with its own dedicated workspace and tools, instead of one generic chat box trying to handle everything.",
+  },
+  {
+    q: "Is Levi free to use?",
+    a: "Yes — the Free tier gives you access to every mode with no card required. Pro and Prime tiers with higher limits are coming soon.",
+  },
+  {
+    q: "Can I switch between modes?",
+    a: "Yes, anytime. Each mode is a self-contained workspace, so you can jump from debugging code to analyzing a trading pair to drafting a business plan in seconds.",
+  },
+  {
+    q: "Is my data private?",
+    a: "Your conversations are tied to your account and aren't shared publicly. We're continuing to build out more detailed privacy controls as the platform grows.",
+  },
+  {
+    q: "Will more modes be added?",
+    a: "Yes — Levi isn't capped at 5 modes. More specialized workspaces are planned as the platform develops.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+
+function scrollToId(id: string) {
+  const el = document.querySelector(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 export default function LandingPage() {
   const router = useRouter();
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  useEffect(() => {
+  function handleSplashFinish() {
     if (isLoggedIn()) {
+      setRedirecting(true);
       router.replace("/app");
     } else {
-      setCheckingAuth(false);
+      setShowSplash(false);
     }
-  }, [router]);
+  }
 
-  // Avoid flashing marketing content at logged-in users mid-redirect
-  if (checkingAuth) {
+  if (showSplash) {
+    return <SplashScreen onFinish={handleSplashFinish} />;
+  }
+
+  if (redirecting) {
     return <div style={{ width: "100vw", height: "100vh", background: "#080C14" }} />;
   }
 
@@ -78,8 +200,9 @@ export default function LandingPage() {
       fontFamily: "Inter, sans-serif",
       overflowX: "hidden",
       position: "relative",
+      scrollBehavior: "smooth",
     }}>
-      {/* Ambient background — brighter, more luminous than the app UI */}
+      {/* Ambient background */}
       <div style={{
         position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
         background: `
@@ -92,24 +215,44 @@ export default function LandingPage() {
 
       {/* Nav */}
       <div style={{
-        position: "sticky", top: 0, zIndex: 10,
+        position: "sticky", top: 0, zIndex: 20,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "20px 40px",
-        background: "rgba(8,12,20,0.7)",
+        padding: "16px 40px",
+        background: "rgba(8,12,20,0.75)",
         backdropFilter: "blur(14px)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
+        flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logo.png" alt="Levi" style={{ height: 30, width: "auto" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <img src="/logolevi.png" alt="Levi" style={{ height: 28, width: "auto" }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
+          {NAV_LINKS.map((link) => (
+            <button
+              key={link.href}
+              onClick={() => scrollToId(link.href)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#8B9CC4", fontSize: 13.5, fontWeight: 600,
+                padding: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#F4D46B")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#8B9CC4")}
+            >
+              {link.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <a href="/login" style={{
-            color: "#C8D4F0", fontSize: 14, fontWeight: 600,
-            textDecoration: "none", padding: "9px 16px",
+            color: "#C8D4F0", fontSize: 13.5, fontWeight: 600,
+            textDecoration: "none", padding: "8px 14px",
           }}>
             Sign In
           </a>
           <a href="/register" style={{
-            color: "#080C14", fontSize: 14, fontWeight: 700,
-            textDecoration: "none", padding: "9px 20px",
+            color: "#080C14", fontSize: 13.5, fontWeight: 700,
+            textDecoration: "none", padding: "9px 18px",
             background: "linear-gradient(135deg, #D4AF37, #F4D46B)",
             borderRadius: 10,
             boxShadow: "0 4px 20px rgba(212,175,55,0.3)",
@@ -119,25 +262,25 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Hero */}
-      <div style={{
+      {/* HOME / HERO */}
+      <div id="home" style={{
         position: "relative", zIndex: 1,
         display: "flex", flexDirection: "column", alignItems: "center",
-        textAlign: "center", padding: "100px 24px 90px",
+        textAlign: "center", padding: "90px 24px 40px",
       }}>
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "6px 16px", marginBottom: 28,
+            padding: "6px 16px", marginBottom: 26,
             background: "rgba(212,175,55,0.1)",
             border: "1px solid rgba(212,175,55,0.3)",
             borderRadius: 20,
             color: "#F4D46B", fontSize: 13, fontWeight: 600,
           }}
         >
-          ✨ One assistant, five specialties
+          ✨ One assistant, many specialized modes
         </motion.div>
 
         <motion.h1
@@ -145,19 +288,15 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           style={{
-            fontSize: "clamp(38px, 6vw, 68px)",
-            fontWeight: 900,
-            lineHeight: 1.08,
-            maxWidth: 880,
-            margin: 0,
-            letterSpacing: -1,
+            fontSize: "clamp(38px, 6vw, 66px)",
+            fontWeight: 900, lineHeight: 1.08,
+            maxWidth: 880, margin: 0, letterSpacing: -1,
           }}
         >
           The AI assistant that's{" "}
           <span style={{
             background: "linear-gradient(135deg, #D4AF37 0%, #F4D46B 40%, #3B82F6 75%, #0057FF 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
             backgroundClip: "text",
             filter: "drop-shadow(0 0 30px rgba(212,175,55,0.35))",
           }}>
@@ -170,19 +309,20 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           style={{
-            color: "#8B9CC4", fontSize: 18, maxWidth: 620,
-            marginTop: 22, lineHeight: 1.6,
+            color: "#8B9CC4", fontSize: 18, maxWidth: 640,
+            marginTop: 20, lineHeight: 1.6,
           }}
         >
           Levi switches into a dedicated workspace for coding, trading, business,
-          writing, or research — instead of one generic chat trying to do everything.
+          writing, or research — each one tailored with its own tools and specs,
+          instead of one generic chat trying to do everything.
         </motion.p>
 
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          style={{ display: "flex", gap: 14, marginTop: 36, flexWrap: "wrap", justifyContent: "center" }}
+          style={{ display: "flex", gap: 14, marginTop: 32, flexWrap: "wrap", justifyContent: "center" }}
         >
           <a href="/register" style={{
             display: "flex", alignItems: "center", gap: 8,
@@ -204,22 +344,128 @@ export default function LandingPage() {
             Sign In
           </a>
         </motion.div>
+
+        {/* App preview mockup — replace with a real screenshot or <video> once you have one */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45, duration: 0.6 }}
+          style={{
+            position: "relative",
+            marginTop: 64,
+            width: "100%", maxWidth: 780, height: 340,
+          }}
+        >
+          {/* Floating mode chips orbiting the preview */}
+          {LEVI_MODES.map((mode, i) => {
+            const angle = (i / LEVI_MODES.length) * 2 * Math.PI - Math.PI / 2;
+            const radius = 46; // percent
+            const top = 50 + radius * Math.sin(angle);
+            const left = 50 + radius * Math.cos(angle);
+            return (
+              <motion.div
+                key={mode.id}
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1, y: [0, -8, 0] }}
+                transition={{
+                  opacity: { delay: 0.6 + i * 0.08, duration: 0.4 },
+                  scale: { delay: 0.6 + i * 0.08, duration: 0.4 },
+                  y: { delay: 1.2 + i * 0.08, duration: 3 + i * 0.3, repeat: Infinity, ease: "easeInOut" },
+                }}
+                style={{
+                  position: "absolute",
+                  top: `${top}%`, left: `${left}%`,
+                  transform: "translate(-50%, -50%)",
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "8px 14px",
+                  background: "#0D1117",
+                  border: `1px solid ${mode.color}45`,
+                  borderRadius: 30,
+                  boxShadow: `0 0 24px ${mode.color}20`,
+                  zIndex: 2,
+                }}
+              >
+                <span style={{ color: mode.color, display: "flex" }}>{mode.icon}</span>
+                <span style={{ color: "white", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  {mode.label}
+                </span>
+              </motion.div>
+            );
+          })}
+
+          {/* Central preview card */}
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 300, height: 190,
+            background: "#0D1117",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 20,
+            boxShadow: "0 20px 70px rgba(0,0,0,0.5), 0 0 60px rgba(212,175,55,0.08)",
+            padding: 20,
+            display: "flex", flexDirection: "column", gap: 10,
+            zIndex: 1,
+          }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444" }} />
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B" }} />
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22C55E" }} />
+            </div>
+            <div style={{ height: 10, width: "70%", background: "rgba(255,255,255,0.08)", borderRadius: 4 }} />
+            <div style={{ height: 10, width: "90%", background: "rgba(255,255,255,0.05)", borderRadius: 4 }} />
+            <div style={{ height: 10, width: "55%", background: "rgba(255,255,255,0.05)", borderRadius: 4 }} />
+            <div style={{
+              marginTop: "auto", alignSelf: "flex-end",
+              padding: "6px 14px", borderRadius: 20,
+              background: "linear-gradient(135deg, #D4AF37, #F4D46B)",
+              color: "#080C14", fontSize: 11, fontWeight: 700,
+            }}>
+              Ask Levi
+            </div>
+          </div>
+        </motion.div>
       </div>
 
-      {/* Features */}
-      <div style={{ position: "relative", zIndex: 1, padding: "20px 24px 100px", maxWidth: 1180, margin: "0 auto" }}>
+      {/* ABOUT */}
+      <div id="about" style={{
+        position: "relative", zIndex: 1, padding: "100px 24px",
+        maxWidth: 880, margin: "0 auto", textAlign: "center",
+      }}>
+        <p style={{ color: "#F4D46B", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
+          ABOUT LEVI
+        </p>
+        <h2 style={{ fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 800, margin: "0 0 18px" }}>
+          Built to be genuinely useful, not just impressive
+        </h2>
+        <p style={{ color: "#8B9CC4", fontSize: 16, lineHeight: 1.75 }}>
+          Most AI tools give you one chat box and expect it to handle everything —
+          code, market analysis, business planning, writing, research — with the same
+          shallow context every time. Levi takes a different approach: it switches into
+          a dedicated Mode built specifically for what you're trying to do, complete with
+          its own tools, layout, and output format. The result is an assistant that feels
+          less like a generic chatbot and more like a set of purpose-built tools that
+          happen to share one brain.
+        </p>
+      </div>
+
+      {/* SERVICES / MODES */}
+      <div id="services" style={{ position: "relative", zIndex: 1, padding: "20px 24px 100px", maxWidth: 1180, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 52 }}>
           <p style={{ color: "#F4D46B", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
-            FIVE DEDICATED MODES
+            SERVICES
           </p>
-          <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, margin: 0 }}>
-            Not one chat box. Five real tools.
+          <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, margin: "0 0 14px" }}>
+            Not one chat box. Purpose-built modes.
           </h2>
+          <p style={{ color: "#8B9CC4", fontSize: 15, maxWidth: 560, margin: "0 auto" }}>
+            Levi isn't limited to these five — each is a fully specialized workspace,
+            and more modes are on the way.
+          </p>
         </div>
 
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 20,
         }}>
           {LEVI_MODES.map((mode, i) => (
@@ -230,7 +476,7 @@ export default function LandingPage() {
               viewport={{ once: true }}
               transition={{ delay: i * 0.06 }}
               style={{
-                padding: "28px 22px",
+                padding: "26px 22px",
                 background: `${mode.color}0A`,
                 border: `1px solid ${mode.color}30`,
                 borderRadius: 18,
@@ -245,19 +491,95 @@ export default function LandingPage() {
               }}>
                 {mode.icon}
               </div>
-              <div style={{ color: "white", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+              <div style={{ color: "white", fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
                 {mode.label}
               </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {MODE_SPECS[mode.id].map((spec) => (
+                  <div key={spec} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <Check size={13} color={mode.color} style={{ flexShrink: 0, marginTop: 3 }} />
+                    <span style={{ color: "#8B9CC4", fontSize: 13, lineHeight: 1.5 }}>{spec}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+
+          {/* "More coming" card */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: LEVI_MODES.length * 0.06 }}
+            style={{
+              padding: "26px 22px",
+              background: "rgba(255,255,255,0.02)",
+              border: "1px dashed rgba(255,255,255,0.15)",
+              borderRadius: 18,
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              textAlign: "center", gap: 10,
+            }}
+          >
+            <Sparkles size={26} color="#6B7280" />
+            <div style={{ color: "white", fontSize: 15, fontWeight: 700 }}>More modes coming</div>
+            <div style={{ color: "#6B7280", fontSize: 13 }}>Levi keeps expanding into new specialties.</div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* WHY LEVI */}
+      <div id="why" style={{ position: "relative", zIndex: 1, padding: "20px 24px 100px", maxWidth: 1180, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 52 }}>
+          <p style={{ color: "#F4D46B", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
+            WHY LEVI AI
+          </p>
+          <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, margin: 0 }}>
+            What actually makes it different
+          </h2>
+        </div>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 20,
+        }}>
+          {WHY_LEVI.map((item, i) => (
+            <motion.div
+              key={item.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05 }}
+              style={{
+                padding: "24px 22px",
+                background: "#0D1117",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 16,
+              }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: 10,
+                background: "rgba(212,175,55,0.1)",
+                border: "1px solid rgba(212,175,55,0.25)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#F4D46B", marginBottom: 14,
+              }}>
+                {item.icon}
+              </div>
+              <div style={{ color: "white", fontSize: 15.5, fontWeight: 700, marginBottom: 8 }}>
+                {item.title}
+              </div>
               <div style={{ color: "#8B9CC4", fontSize: 13.5, lineHeight: 1.6 }}>
-                {FEATURE_BLURBS[mode.id]}
+                {item.description}
               </div>
             </motion.div>
           ))}
         </div>
       </div>
 
-      {/* Pricing */}
-      <div style={{ position: "relative", zIndex: 1, padding: "20px 24px 110px", maxWidth: 1080, margin: "0 auto" }}>
+      {/* PRICING */}
+      <div id="pricing" style={{ position: "relative", zIndex: 1, padding: "20px 24px 110px", maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 52 }}>
           <p style={{ color: "#F4D46B", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
             SIMPLE PRICING
@@ -265,14 +587,15 @@ export default function LandingPage() {
           <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, margin: "0 0 12px" }}>
             Start free. Upgrade when you need to.
           </h2>
-          <p style={{ color: "#8B9CC4", fontSize: 15 }}>No hidden fees. Cancel anytime.</p>
+          <p style={{ color: "#8B9CC4", fontSize: 15 }}>
+            Pro and Prime are on the way — Free is fully open right now.
+          </p>
         </div>
 
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 20,
-          alignItems: "start",
+          gap: 20, alignItems: "start",
         }}>
           {PRICING_TIERS.map((tier) => (
             <div
@@ -286,6 +609,7 @@ export default function LandingPage() {
                 borderRadius: 20,
                 position: "relative",
                 boxShadow: tier.highlighted ? "0 0 50px rgba(212,175,55,0.12)" : "none",
+                opacity: tier.available ? 1 : 0.7,
               }}
             >
               {tier.highlighted && (
@@ -296,7 +620,19 @@ export default function LandingPage() {
                   color: "#080C14", fontSize: 11, fontWeight: 800,
                   borderRadius: 20, letterSpacing: 0.5,
                 }}>
-                  MOST POPULAR
+                  AVAILABLE NOW
+                </div>
+              )}
+              {!tier.available && (
+                <div style={{
+                  position: "absolute", top: -13, left: "50%", transform: "translateX(-50%)",
+                  padding: "4px 14px",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  color: "#9CA3AF", fontSize: 11, fontWeight: 800,
+                  borderRadius: 20, letterSpacing: 0.5,
+                }}>
+                  COMING SOON
                 </div>
               )}
               <div style={{ color: "white", fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
@@ -319,24 +655,122 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <a
-                href="/register"
-                style={{
+              {tier.available ? (
+                <a
+                  href="/register"
+                  style={{
+                    display: "block", textAlign: "center",
+                    padding: "13px", borderRadius: 12,
+                    textDecoration: "none", fontSize: 14, fontWeight: 700,
+                    background: "linear-gradient(135deg, #D4AF37, #F4D46B)",
+                    color: "#080C14",
+                  }}
+                >
+                  {tier.cta}
+                </a>
+              ) : (
+                <div style={{
                   display: "block", textAlign: "center",
                   padding: "13px", borderRadius: 12,
-                  textDecoration: "none", fontSize: 14, fontWeight: 700,
-                  background: tier.highlighted
-                    ? "linear-gradient(135deg, #D4AF37, #F4D46B)"
-                    : "rgba(255,255,255,0.06)",
-                  color: tier.highlighted ? "#080C14" : "white",
-                  border: tier.highlighted ? "none" : "1px solid rgba(255,255,255,0.12)",
-                }}
-              >
-                {tier.cta}
-              </a>
+                  fontSize: 14, fontWeight: 700,
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#6B7280",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  cursor: "not-allowed",
+                }}>
+                  {tier.cta}
+                </div>
+              )}
             </div>
           ))}
         </div>
+      </div>
+
+      {/* FAQ */}
+      <div id="faq" style={{ position: "relative", zIndex: 1, padding: "20px 24px 110px", maxWidth: 780, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 44 }}>
+          <p style={{ color: "#F4D46B", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
+            FAQ
+          </p>
+          <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, margin: 0 }}>
+            Common questions
+          </h2>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {FAQS.map((item, i) => {
+            const isOpen = openFaq === i;
+            return (
+              <div key={item.q} style={{
+                background: "#0D1117",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 14, overflow: "hidden",
+              }}>
+                <button
+                  onClick={() => setOpenFaq(isOpen ? null : i)}
+                  style={{
+                    width: "100%", padding: "18px 20px",
+                    background: "none", border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ color: "white", fontSize: 14.5, fontWeight: 600 }}>{item.q}</span>
+                  <motion.span animate={{ rotate: isOpen ? 180 : 0 }} style={{ color: "#6B7280", flexShrink: 0, marginLeft: 12 }}>
+                    <ChevronDown size={17} />
+                  </motion.span>
+                </button>
+                <AnimatePresence>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      style={{ overflow: "hidden" }}
+                    >
+                      <p style={{ color: "#8B9CC4", fontSize: 13.5, lineHeight: 1.6, padding: "0 20px 18px" }}>
+                        {item.a}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* CONTACT */}
+      <div id="contact" style={{
+        position: "relative", zIndex: 1,
+        margin: "0 24px 100px",
+        maxWidth: 780, marginLeft: "auto", marginRight: "auto",
+        padding: "50px 40px",
+        background: "#0D1117",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 24,
+        textAlign: "center",
+      }}>
+        <p style={{ color: "#F4D46B", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
+          CONTACT
+        </p>
+        <h2 style={{ fontSize: "clamp(24px, 3.5vw, 32px)", fontWeight: 800, margin: "0 0 14px" }}>
+          Questions? Reach out.
+        </h2>
+        <p style={{ color: "#8B9CC4", fontSize: 15, marginBottom: 26 }}>
+          {/* Placeholder — replace with your real support/contact email */}
+          We're happy to help. Email us and we'll get back to you.
+        </p>
+        <a href="mailto:hello@leviai.app" style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "13px 24px",
+          background: "rgba(212,175,55,0.1)",
+          border: "1px solid rgba(212,175,55,0.3)",
+          color: "#F4D46B", fontWeight: 700, fontSize: 14,
+          borderRadius: 12, textDecoration: "none",
+        }}>
+          <Mail size={16} /> hello@leviai.app
+        </a>
       </div>
 
       {/* Final CTA */}
@@ -376,7 +810,18 @@ export default function LandingPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logo.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
+        <img src="/logolevi.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          {NAV_LINKS.map((link) => (
+            <button
+              key={link.href}
+              onClick={() => scrollToId(link.href)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#3D4F72", fontSize: 12.5 }}
+            >
+              {link.label}
+            </button>
+          ))}
+        </div>
         <span style={{ color: "#3D4F72", fontSize: 13 }}>
           © {new Date().getFullYear()} Levi AI. Built by Charles Odii Okechukwu.
         </span>
@@ -384,11 +829,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-const FEATURE_BLURBS: Record<string, string> = {
-  coding: "Paste code or describe what to build. Explain, debug, optimize, convert, or generate from scratch — with automatic language detection.",
-  crypto: "Live market data, AI trend analysis, entry/stop-loss/take-profit levels, and multi-timeframe confluence for any pair.",
-  business: "Business plans, SWOT analysis, financial projections, competitor research, and pitch decks — structured, not just chat.",
-  writing: "Creative writing, copywriting, blog posts, editing, and social content — organized by what you're actually trying to write.",
-  research: "Deep dives, side-by-side comparisons, and fact-checking with accuracy assessments — with copy and download built in.",
-};
