@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, ArrowRight, ChevronDown, Mail, Sparkles,
   Zap, LayoutGrid, ShieldCheck, Gauge, Download, Handshake,
@@ -165,42 +165,6 @@ const FAQS = [
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Cursor life — a soft glow that trails the mouse, and a "beam" ripple on
-// click. Both live in their own components using motion values (not React
-// state) so mouse movement doesn't trigger re-renders of the whole page.
-// ---------------------------------------------------------------------------
-
-function CursorGlow() {
-  const x = useMotionValue(-400);
-  const y = useMotionValue(-400);
-  const springX = useSpring(x, { stiffness: 140, damping: 18, mass: 0.5 });
-  const springY = useSpring(y, { stiffness: 140, damping: 18, mass: 0.5 });
-
-  useEffect(() => {
-    function handleMove(e: MouseEvent) {
-      x.set(e.clientX - 190);
-      y.set(e.clientY - 190);
-    }
-    window.addEventListener("mousemove", handleMove);
-    return () => window.removeEventListener("mousemove", handleMove);
-  }, [x, y]);
-
-  return (
-    <motion.div
-      style={{
-        position: "fixed", top: 0, left: 0,
-        width: 380, height: 380, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(212,175,55,0.14) 0%, rgba(59,130,246,0.08) 45%, transparent 70%)",
-        pointerEvents: "none",
-        zIndex: 3,
-        x: springX,
-        y: springY,
-      }}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
 
 function scrollToId(id: string) {
   const el = document.querySelector(id);
@@ -240,7 +204,6 @@ export default function LandingPage() {
       position: "relative",
       scrollBehavior: "smooth",
     }}>
-      <CursorGlow />
       {/* Ambient background */}
       <div style={{
         position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
@@ -262,7 +225,7 @@ export default function LandingPage() {
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logo.png" alt="Levi" style={{ height: 28, width: "auto" }} />
+        <img src="/logolevi.png" alt="Levi" style={{ height: 28, width: "auto" }} />
 
         <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
@@ -272,10 +235,17 @@ export default function LandingPage() {
               style={{
                 background: "none", border: "none", cursor: "pointer",
                 color: "#8B9CC4", fontSize: 13.5, fontWeight: 600,
-                padding: 0,
+                padding: 0, textShadow: "none",
+                transition: "color 0.2s ease, text-shadow 0.2s ease",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#F4D46B")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#8B9CC4")}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#F4D46B";
+                e.currentTarget.style.textShadow = "0 0 12px rgba(212,175,55,0.5)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "#8B9CC4";
+                e.currentTarget.style.textShadow = "none";
+              }}
             >
               {link.label}
             </button>
@@ -286,7 +256,22 @@ export default function LandingPage() {
           <a href="/login" style={{
             color: "#C8D4F0", fontSize: 13.5, fontWeight: 600,
             textDecoration: "none", padding: "8px 14px",
-          }}>
+            borderRadius: 9, border: "1px solid transparent",
+            transition: "all 0.2s ease",
+          }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)";
+              e.currentTarget.style.background = "rgba(59,130,246,0.1)";
+              e.currentTarget.style.boxShadow = "0 0 20px rgba(59,130,246,0.25)";
+              e.currentTarget.style.color = "#93C5FD";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "transparent";
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.color = "#C8D4F0";
+            }}
+          >
             Sign In
           </a>
           <a href="/register" style={{
@@ -295,7 +280,17 @@ export default function LandingPage() {
             background: "linear-gradient(135deg, #D4AF37, #F4D46B)",
             borderRadius: 10,
             boxShadow: "0 4px 20px rgba(212,175,55,0.3)",
-          }}>
+            transition: "all 0.2s ease", display: "inline-block",
+          }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = "0 6px 28px rgba(212,175,55,0.5)";
+              e.currentTarget.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = "0 4px 20px rgba(212,175,55,0.3)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
             Get Started
           </a>
         </div>
@@ -371,7 +366,17 @@ export default function LandingPage() {
             color: "#080C14", fontWeight: 700, fontSize: 15,
             borderRadius: 14, textDecoration: "none",
             boxShadow: "0 8px 30px rgba(212,175,55,0.35)",
-          }}>
+            transition: "all 0.25s ease",
+          }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = "0 10px 42px rgba(212,175,55,0.55)";
+              e.currentTarget.style.transform = "translateY(-3px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = "0 8px 30px rgba(212,175,55,0.35)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
             Get Started Free <ArrowRight size={16} />
           </a>
           <a href="/login" style={{
@@ -380,7 +385,21 @@ export default function LandingPage() {
             border: "1px solid rgba(255,255,255,0.12)",
             color: "white", fontWeight: 600, fontSize: 15,
             borderRadius: 14, textDecoration: "none",
-          }}>
+            transition: "all 0.25s ease",
+          }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(59,130,246,0.12)";
+              e.currentTarget.style.borderColor = "rgba(59,130,246,0.5)";
+              e.currentTarget.style.boxShadow = "0 8px 30px rgba(59,130,246,0.3)";
+              e.currentTarget.style.transform = "translateY(-3px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
+              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
             Sign In
           </a>
         </motion.div>
@@ -649,6 +668,32 @@ export default function LandingPage() {
                 position: "relative",
                 boxShadow: tier.highlighted ? "0 0 50px rgba(212,175,55,0.12)" : "none",
                 opacity: tier.available ? 1 : 0.7,
+                transition: "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease",
+                cursor: "default",
+              }}
+              onMouseEnter={(e) => {
+                if (tier.highlighted) {
+                  e.currentTarget.style.background = "rgba(212,175,55,0.1)";
+                  e.currentTarget.style.borderColor = "rgba(212,175,55,0.65)";
+                  e.currentTarget.style.boxShadow = "0 0 60px rgba(212,175,55,0.28)";
+                } else {
+                  e.currentTarget.style.background = "rgba(59,130,246,0.06)";
+                  e.currentTarget.style.borderColor = "rgba(59,130,246,0.45)";
+                  e.currentTarget.style.boxShadow = "0 0 44px rgba(59,130,246,0.2)";
+                }
+                e.currentTarget.style.transform = "translateY(-4px)";
+              }}
+              onMouseLeave={(e) => {
+                if (tier.highlighted) {
+                  e.currentTarget.style.background = "rgba(212,175,55,0.06)";
+                  e.currentTarget.style.borderColor = "rgba(212,175,55,0.4)";
+                  e.currentTarget.style.boxShadow = "0 0 50px rgba(212,175,55,0.12)";
+                } else {
+                  e.currentTarget.style.background = "#0D1117";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
+                  e.currentTarget.style.boxShadow = "none";
+                }
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               {tier.highlighted && (
@@ -666,9 +711,9 @@ export default function LandingPage() {
                 <div style={{
                   position: "absolute", top: -13, left: "50%", transform: "translateX(-50%)",
                   padding: "4px 14px",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  color: "#9CA3AF", fontSize: 11, fontWeight: 800,
+                  background: "rgba(59,130,246,0.12)",
+                  border: "1px solid rgba(59,130,246,0.3)",
+                  color: "#93C5FD", fontSize: 11, fontWeight: 800,
                   borderRadius: 20, letterSpacing: 0.5,
                 }}>
                   COMING SOON
@@ -703,6 +748,15 @@ export default function LandingPage() {
                     textDecoration: "none", fontSize: 14, fontWeight: 700,
                     background: "linear-gradient(135deg, #D4AF37, #F4D46B)",
                     color: "#080C14",
+                    transition: "box-shadow 0.25s ease, transform 0.25s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = "0 6px 26px rgba(212,175,55,0.45)";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
                   {tier.cta}
@@ -762,7 +816,21 @@ export default function LandingPage() {
           border: "1px solid rgba(255,255,255,0.15)",
           color: "white", fontWeight: 600, fontSize: 13.5,
           textDecoration: "none", whiteSpace: "nowrap",
-        }}>
+          transition: "all 0.25s ease",
+        }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(59,130,246,0.14)";
+            e.currentTarget.style.borderColor = "rgba(59,130,246,0.5)";
+            e.currentTarget.style.boxShadow = "0 0 26px rgba(59,130,246,0.3)";
+            e.currentTarget.style.transform = "translateY(-2px)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+            e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+            e.currentTarget.style.boxShadow = "none";
+            e.currentTarget.style.transform = "translateY(0)";
+          }}
+        >
           Get in touch
         </a>
       </div>
@@ -782,11 +850,30 @@ export default function LandingPage() {
           {FAQS.map((item, i) => {
             const isOpen = openFaq === i;
             return (
-              <div key={item.q} style={{
-                background: "#0D1117",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 14, overflow: "hidden",
-              }}>
+              <div
+                key={item.q}
+                style={{
+                  background: isOpen ? "rgba(59,130,246,0.05)" : "#0D1117",
+                  border: isOpen ? "1px solid rgba(59,130,246,0.35)" : "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 14, overflow: "hidden",
+                  transition: "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease",
+                  boxShadow: isOpen ? "0 0 30px rgba(59,130,246,0.15)" : "none",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isOpen) {
+                    e.currentTarget.style.background = "rgba(59,130,246,0.04)";
+                    e.currentTarget.style.borderColor = "rgba(59,130,246,0.3)";
+                    e.currentTarget.style.boxShadow = "0 0 24px rgba(59,130,246,0.12)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isOpen) {
+                    e.currentTarget.style.background = "#0D1117";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }
+                }}
+              >
                 <button
                   onClick={() => setOpenFaq(isOpen ? null : i)}
                   style={{
@@ -828,11 +915,11 @@ export default function LandingPage() {
         maxWidth: 780, marginLeft: "auto", marginRight: "auto",
         padding: "50px 40px",
         background: "#0D1117",
-        border: "1px solid rgba(255,255,255,0.08)",
+        border: "1px solid rgba(59,130,246,0.2)",
         borderRadius: 24,
         textAlign: "center",
       }}>
-        <p style={{ color: "#F4D46B", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
+        <p style={{ color: "#60A5FA", fontSize: 13, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>
           CONTACT
         </p>
         <h2 style={{ fontSize: "clamp(24px, 3.5vw, 32px)", fontWeight: 800, margin: "0 0 14px" }}>
@@ -844,11 +931,25 @@ export default function LandingPage() {
         <a href="mailto:charlesodii207@gmail.com" style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "13px 24px",
-          background: "rgba(212,175,55,0.1)",
-          border: "1px solid rgba(212,175,55,0.3)",
-          color: "#F4D46B", fontWeight: 700, fontSize: 14,
+          background: "rgba(59,130,246,0.1)",
+          border: "1px solid rgba(59,130,246,0.35)",
+          color: "#93C5FD", fontWeight: 700, fontSize: 14,
           borderRadius: 12, textDecoration: "none",
-        }}>
+          transition: "all 0.25s ease",
+        }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(59,130,246,0.18)";
+            e.currentTarget.style.borderColor = "rgba(59,130,246,0.6)";
+            e.currentTarget.style.boxShadow = "0 0 30px rgba(59,130,246,0.3)";
+            e.currentTarget.style.transform = "translateY(-2px)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(59,130,246,0.1)";
+            e.currentTarget.style.borderColor = "rgba(59,130,246,0.35)";
+            e.currentTarget.style.boxShadow = "none";
+            e.currentTarget.style.transform = "translateY(0)";
+          }}
+        >
           <Mail size={16} /> charlesodii207@gmail.com
         </a>
       </div>
@@ -877,7 +978,17 @@ export default function LandingPage() {
           color: "#080C14", fontWeight: 700, fontSize: 15,
           borderRadius: 14, textDecoration: "none",
           boxShadow: "0 8px 30px rgba(212,175,55,0.35)",
-        }}>
+          transition: "all 0.25s ease",
+        }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = "0 10px 42px rgba(212,175,55,0.55)";
+            e.currentTarget.style.transform = "translateY(-3px)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = "0 8px 30px rgba(212,175,55,0.35)";
+            e.currentTarget.style.transform = "translateY(0)";
+          }}
+        >
           Get Started Free <ArrowRight size={16} />
         </a>
       </div>
@@ -890,13 +1001,26 @@ export default function LandingPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logo.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
+        <img src="/logolevi.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
             <button
               key={link.href}
               onClick={() => scrollToId(link.href)}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#3D4F72", fontSize: 12.5 }}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#3D4F72", fontSize: 12.5,
+                transition: "color 0.2s ease, text-shadow 0.2s ease",
+                textShadow: "none",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#60A5FA";
+                e.currentTarget.style.textShadow = "0 0 10px rgba(59,130,246,0.5)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "#3D4F72";
+                e.currentTarget.style.textShadow = "none";
+              }}
             >
               {link.label}
             </button>
