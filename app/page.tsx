@@ -6,8 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, ArrowRight, ChevronDown, Mail, Sparkles,
   Zap, LayoutGrid, ShieldCheck, Gauge, Download, Handshake,
+  Menu, X,
 } from "lucide-react";
-import { LEVI_MODES } from "./components/Sidebar";
+import { LEVI_MODES } from "./lib/modes";
 import { isLoggedIn } from "./lib/auth";
 import SplashScreen from "./components/SplashScreen";
 
@@ -176,6 +177,7 @@ export default function LandingPage() {
   const [showSplash, setShowSplash] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   function handleSplashFinish() {
     if (isLoggedIn()) {
@@ -216,18 +218,18 @@ export default function LandingPage() {
       }} />
 
       {/* Nav */}
-      <div style={{
+      <div className="site-nav" style={{
         position: "sticky", top: 0, zIndex: 20,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 40px",
+        padding: "14px 40px",
         background: "rgba(8,12,20,0.75)",
         backdropFilter: "blur(14px)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
-        flexWrap: "wrap", gap: 12,
+        gap: 12,
       }}>
-        <img src="/logolevi.png" alt="Levi" style={{ height: 28, width: "auto" }} />
+        <img src="/logo.png" alt="Levi" style={{ height: 28, width: "auto", flexShrink: 0 }} />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
+        <div className="nav-links-desktop" style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
             <button
               key={link.href}
@@ -252,7 +254,7 @@ export default function LandingPage() {
           ))}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="nav-auth-desktop" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <a href="/login" style={{
             color: "#C8D4F0", fontSize: 13.5, fontWeight: 600,
             textDecoration: "none", padding: "8px 14px",
@@ -294,7 +296,101 @@ export default function LandingPage() {
             Get Started
           </a>
         </div>
+
+        {/* Hamburger — hidden on desktop, shown below 860px via the media query at the bottom of this file */}
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          style={{
+            display: "none",
+            width: 38, height: 38, borderRadius: 9,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            color: "white", cursor: "pointer",
+            alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
       </div>
+
+      {/* Mobile dropdown menu */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{
+              position: "sticky", top: 62, zIndex: 19,
+              overflow: "hidden",
+              background: "rgba(8,12,20,0.98)",
+              backdropFilter: "blur(14px)",
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <div style={{ padding: "10px 24px 20px", display: "flex", flexDirection: "column" }}>
+              {NAV_LINKS.map((link) => (
+                <button
+                  key={link.href}
+                  onClick={() => { scrollToId(link.href); setMobileMenuOpen(false); }}
+                  style={{
+                    textAlign: "left", padding: "13px 4px",
+                    background: "none", border: "none",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    color: "#C8D4F0", fontSize: 15, fontWeight: 600,
+                  }}
+                >
+                  {link.label}
+                </button>
+              ))}
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <a
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    flex: 1, textAlign: "center", padding: "13px",
+                    borderRadius: 10, border: "1px solid rgba(59,130,246,0.4)",
+                    color: "#93C5FD", textDecoration: "none",
+                    fontWeight: 600, fontSize: 14,
+                    background: "rgba(59,130,246,0.08)",
+                  }}
+                >
+                  Sign In
+                </a>
+                <a
+                  href="/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    flex: 1, textAlign: "center", padding: "13px",
+                    borderRadius: 10,
+                    background: "linear-gradient(135deg, #D4AF37, #F4D46B)",
+                    color: "#080C14", textDecoration: "none",
+                    fontWeight: 700, fontSize: 14,
+                  }}
+                >
+                  Get Started
+                </a>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Responsive rules — hamburger swaps in below 860px so the 7 nav
+          links + logo + 2 buttons stop wrapping into a tall, overlapping
+          block on phones and small tablets. */}
+      <style>{`
+        @media (max-width: 860px) {
+          .nav-links-desktop { display: none !important; }
+          .nav-auth-desktop { display: none !important; }
+          .mobile-menu-btn { display: flex !important; }
+        }
+        @media (max-width: 640px) {
+          .site-nav { padding-left: 18px !important; padding-right: 18px !important; }
+        }
+      `}</style>
 
       {/* HOME / HERO */}
       <div id="home" style={{
@@ -1001,7 +1097,7 @@ export default function LandingPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logolevi.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
+        <img src="/logo.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
             <button
