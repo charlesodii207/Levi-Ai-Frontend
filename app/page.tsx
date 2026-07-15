@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import {
   Check, ArrowRight, ChevronDown, Mail, Sparkles,
-  Zap, LayoutGrid, ShieldCheck, Gauge, Download,
+  Zap, LayoutGrid, ShieldCheck, Gauge, Download, Handshake,
 } from "lucide-react";
 import { LEVI_MODES } from "./components/Sidebar";
 import { isLoggedIn } from "./lib/auth";
@@ -98,7 +98,7 @@ const PRICING_TIERS = [
     period: "forever",
     description: "Everything you need to try Levi across every mode.",
     features: [
-      "Access to all 5 modes",
+      "Access to all modes",
       "Limited messages per day",
       "Standard response speed",
       "Conversation history",
@@ -109,7 +109,7 @@ const PRICING_TIERS = [
   },
   {
     name: "Pro",
-    price: "$19",
+    price: "$9.99",
     period: "/ month",
     description: "For people who use Levi daily and want more headroom.",
     features: [
@@ -164,6 +164,85 @@ const FAQS = [
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Cursor life — a soft glow that trails the mouse, and a "beam" ripple on
+// click. Both live in their own components using motion values (not React
+// state) so mouse movement doesn't trigger re-renders of the whole page.
+// ---------------------------------------------------------------------------
+
+function CursorGlow() {
+  const x = useMotionValue(-400);
+  const y = useMotionValue(-400);
+  const springX = useSpring(x, { stiffness: 140, damping: 18, mass: 0.5 });
+  const springY = useSpring(y, { stiffness: 140, damping: 18, mass: 0.5 });
+
+  useEffect(() => {
+    function handleMove(e: MouseEvent) {
+      x.set(e.clientX - 190);
+      y.set(e.clientY - 190);
+    }
+    window.addEventListener("mousemove", handleMove);
+    return () => window.removeEventListener("mousemove", handleMove);
+  }, [x, y]);
+
+  return (
+    <motion.div
+      style={{
+        position: "fixed", top: 0, left: 0,
+        width: 380, height: 380, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(212,175,55,0.14) 0%, rgba(59,130,246,0.08) 45%, transparent 70%)",
+        pointerEvents: "none",
+        zIndex: 3,
+        x: springX,
+        y: springY,
+      }}
+    />
+  );
+}
+
+function ClickBeams() {
+  const [beams, setBeams] = useState<{ id: string; x: number; y: number }[]>([]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      const id = `${Date.now()}-${Math.random()}`;
+      setBeams((prev) => [...prev, { id, x: e.clientX, y: e.clientY }]);
+      setTimeout(() => {
+        setBeams((prev) => prev.filter((b) => b.id !== id));
+      }, 650);
+    }
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 40 }}>
+      <AnimatePresence>
+        {beams.map((b) => (
+          <motion.div
+            key={b.id}
+            initial={{ opacity: 0.65, scale: 0 }}
+            animate={{ opacity: 0, scale: 2.6 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            style={{
+              position: "absolute",
+              left: b.x, top: b.y,
+              width: 56, height: 56,
+              marginLeft: -28, marginTop: -28,
+              borderRadius: "50%",
+              border: "2px solid rgba(212,175,55,0.6)",
+              background: "radial-gradient(circle, rgba(212,175,55,0.35), transparent 70%)",
+            }}
+          />
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function scrollToId(id: string) {
   const el = document.querySelector(id);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -202,6 +281,8 @@ export default function LandingPage() {
       position: "relative",
       scrollBehavior: "smooth",
     }}>
+      <CursorGlow />
+      <ClickBeams />
       {/* Ambient background */}
       <div style={{
         position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
@@ -223,7 +304,7 @@ export default function LandingPage() {
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logolevi.png" alt="Levi" style={{ height: 28, width: "auto" }} />
+        <img src="/logo.png" alt="Levi" style={{ height: 28, width: "auto" }} />
 
         <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
@@ -280,7 +361,7 @@ export default function LandingPage() {
             color: "#F4D46B", fontSize: 13, fontWeight: 600,
           }}
         >
-          ✨ One assistant, many specialized modes
+          ✨ Modes for the job, or just talk — your call
         </motion.div>
 
         <motion.h1
@@ -314,8 +395,9 @@ export default function LandingPage() {
           }}
         >
           Levi switches into a dedicated workspace for coding, trading, business,
-          writing, or research — each one tailored with its own tools and specs,
-          instead of one generic chat trying to do everything.
+          writing, or research — each one tailored with its own tools and specs.
+          Or skip the modes entirely and just have a normal conversation, like
+          any other AI chat.
         </motion.p>
 
         <motion.div
@@ -345,83 +427,52 @@ export default function LandingPage() {
           </a>
         </motion.div>
 
-        {/* App preview mockup — replace with a real screenshot or <video> once you have one */}
+        {/* App preview — dominant, full-width. Swap to a <video> tag here later. */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45, duration: 0.6 }}
           style={{
             position: "relative",
-            marginTop: 64,
-            width: "100%", maxWidth: 780, height: 340,
+            marginTop: 60,
+            width: "100%", maxWidth: 1080,
           }}
         >
-          {/* Floating mode chips orbiting the preview */}
-          {LEVI_MODES.map((mode, i) => {
-            const angle = (i / LEVI_MODES.length) * 2 * Math.PI - Math.PI / 2;
-            const radius = 46; // percent
-            const top = 50 + radius * Math.sin(angle);
-            const left = 50 + radius * Math.cos(angle);
-            return (
-              <motion.div
-                key={mode.id}
-                initial={{ opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1, y: [0, -8, 0] }}
-                transition={{
-                  opacity: { delay: 0.6 + i * 0.08, duration: 0.4 },
-                  scale: { delay: 0.6 + i * 0.08, duration: 0.4 },
-                  y: { delay: 1.2 + i * 0.08, duration: 3 + i * 0.3, repeat: Infinity, ease: "easeInOut" },
-                }}
-                style={{
-                  position: "absolute",
-                  top: `${top}%`, left: `${left}%`,
-                  transform: "translate(-50%, -50%)",
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "8px 14px",
-                  background: "#0D1117",
-                  border: `1px solid ${mode.color}45`,
-                  borderRadius: 30,
-                  boxShadow: `0 0 24px ${mode.color}20`,
-                  zIndex: 2,
-                }}
-              >
-                <span style={{ color: mode.color, display: "flex" }}>{mode.icon}</span>
-                <span style={{ color: "white", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {mode.label}
-                </span>
-              </motion.div>
-            );
-          })}
-
-          {/* Central preview card */}
+          {/* Ambient blurred duplicate — atmosphere only, not meant to be read.
+              This is the "picture as background" feeling without sacrificing
+              legibility of the sharp image on top. */}
           <div style={{
-            position: "absolute", top: "50%", left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: 300, height: 190,
-            background: "#0D1117",
+            position: "absolute",
+            top: "50%", left: "50%",
+            transform: "translate(-50%, -50%) scale(1.15)",
+            width: "100%",
+            zIndex: 0,
+            opacity: 0.35,
+            filter: "blur(60px) saturate(1.3)",
+            pointerEvents: "none",
+          }}>
+            <img
+              src="/hero-preview.png"
+              alt=""
+              style={{ width: "100%", height: "auto", display: "block" }}
+            />
+          </div>
+
+          {/* Sharp dominant screenshot */}
+          <div style={{
+            position: "relative",
+            width: "100%",
+            borderRadius: 22,
+            overflow: "hidden",
             border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 20,
-            boxShadow: "0 20px 70px rgba(0,0,0,0.5), 0 0 60px rgba(212,175,55,0.08)",
-            padding: 20,
-            display: "flex", flexDirection: "column", gap: 10,
+            boxShadow: "0 30px 90px rgba(0,0,0,0.55), 0 0 90px rgba(212,175,55,0.1)",
             zIndex: 1,
           }}>
-            <div style={{ display: "flex", gap: 6 }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444" }} />
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B" }} />
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22C55E" }} />
-            </div>
-            <div style={{ height: 10, width: "70%", background: "rgba(255,255,255,0.08)", borderRadius: 4 }} />
-            <div style={{ height: 10, width: "90%", background: "rgba(255,255,255,0.05)", borderRadius: 4 }} />
-            <div style={{ height: 10, width: "55%", background: "rgba(255,255,255,0.05)", borderRadius: 4 }} />
-            <div style={{
-              marginTop: "auto", alignSelf: "flex-end",
-              padding: "6px 14px", borderRadius: 20,
-              background: "linear-gradient(135deg, #D4AF37, #F4D46B)",
-              color: "#080C14", fontSize: 11, fontWeight: 700,
-            }}>
-              Ask Levi
-            </div>
+            <img
+              src="/hero-preview.png"
+              alt="Levi app preview"
+              style={{ width: "100%", height: "auto", display: "block" }}
+            />
           </div>
         </motion.div>
       </div>
@@ -686,6 +737,48 @@ export default function LandingPage() {
         </div>
       </div>
 
+      {/* SPONSORSHIP BAR */}
+      <div style={{
+        position: "relative", zIndex: 1,
+        margin: "0 24px 90px",
+        maxWidth: 1080, marginLeft: "auto", marginRight: "auto",
+        padding: "20px 28px",
+        background: "linear-gradient(90deg, rgba(59,130,246,0.08), rgba(212,175,55,0.08))",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 16,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        flexWrap: "wrap", gap: 14,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 10,
+            background: "rgba(212,175,55,0.12)",
+            border: "1px solid rgba(212,175,55,0.3)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#F4D46B", flexShrink: 0,
+          }}>
+            <Handshake size={18} />
+          </div>
+          <div>
+            <div style={{ color: "white", fontSize: 14.5, fontWeight: 700 }}>
+              Interested in sponsoring Levi AI?
+            </div>
+            <div style={{ color: "#8B9CC4", fontSize: 13 }}>
+              We're open to partnerships and sponsorships as the platform grows.
+            </div>
+          </div>
+        </div>
+        <a href="mailto:charlesodii207@gmail.com" style={{
+          padding: "10px 20px", borderRadius: 10,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          color: "white", fontWeight: 600, fontSize: 13.5,
+          textDecoration: "none", whiteSpace: "nowrap",
+        }}>
+          Get in touch
+        </a>
+      </div>
+
       {/* FAQ */}
       <div id="faq" style={{ position: "relative", zIndex: 1, padding: "20px 24px 110px", maxWidth: 780, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 44 }}>
@@ -758,10 +851,9 @@ export default function LandingPage() {
           Questions? Reach out.
         </h2>
         <p style={{ color: "#8B9CC4", fontSize: 15, marginBottom: 26 }}>
-          {/* Placeholder — replace with your real support/contact email */}
           We're happy to help. Email us and we'll get back to you.
         </p>
-        <a href="mailto:hello@leviai.app" style={{
+        <a href="mailto:charlesodii207@gmail.com" style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "13px 24px",
           background: "rgba(212,175,55,0.1)",
@@ -769,7 +861,7 @@ export default function LandingPage() {
           color: "#F4D46B", fontWeight: 700, fontSize: 14,
           borderRadius: 12, textDecoration: "none",
         }}>
-          <Mail size={16} /> hello@leviai.app
+          <Mail size={16} /> charlesodii207@gmail.com
         </a>
       </div>
 
@@ -810,7 +902,7 @@ export default function LandingPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logolevi.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
+        <img src="/logo.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
             <button
