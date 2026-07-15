@@ -200,47 +200,6 @@ function CursorGlow() {
   );
 }
 
-function ClickBeams() {
-  const [beams, setBeams] = useState<{ id: string; x: number; y: number }[]>([]);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      const id = `${Date.now()}-${Math.random()}`;
-      setBeams((prev) => [...prev, { id, x: e.clientX, y: e.clientY }]);
-      setTimeout(() => {
-        setBeams((prev) => prev.filter((b) => b.id !== id));
-      }, 650);
-    }
-    window.addEventListener("click", handleClick);
-    return () => window.removeEventListener("click", handleClick);
-  }, []);
-
-  return (
-    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 40 }}>
-      <AnimatePresence>
-        {beams.map((b) => (
-          <motion.div
-            key={b.id}
-            initial={{ opacity: 0.65, scale: 0 }}
-            animate={{ opacity: 0, scale: 2.6 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.55, ease: "easeOut" }}
-            style={{
-              position: "absolute",
-              left: b.x, top: b.y,
-              width: 56, height: 56,
-              marginLeft: -28, marginTop: -28,
-              borderRadius: "50%",
-              border: "2px solid rgba(212,175,55,0.6)",
-              background: "radial-gradient(circle, rgba(212,175,55,0.35), transparent 70%)",
-            }}
-          />
-        ))}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 
 function scrollToId(id: string) {
@@ -282,7 +241,6 @@ export default function LandingPage() {
       scrollBehavior: "smooth",
     }}>
       <CursorGlow />
-      <ClickBeams />
       {/* Ambient background */}
       <div style={{
         position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
@@ -531,6 +489,21 @@ export default function LandingPage() {
                 background: `${mode.color}0A`,
                 border: `1px solid ${mode.color}30`,
                 borderRadius: 18,
+                transition: "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease",
+                boxShadow: "none",
+                cursor: "default",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `${mode.color}18`;
+                e.currentTarget.style.borderColor = `${mode.color}70`;
+                e.currentTarget.style.boxShadow = `0 0 34px ${mode.color}30`;
+                e.currentTarget.style.transform = "translateY(-3px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = `${mode.color}0A`;
+                e.currentTarget.style.borderColor = `${mode.color}30`;
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <div style={{
@@ -607,6 +580,21 @@ export default function LandingPage() {
                 background: "#0D1117",
                 border: "1px solid rgba(255,255,255,0.07)",
                 borderRadius: 16,
+                transition: "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease",
+                boxShadow: "none",
+                cursor: "default",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(59,130,246,0.07)";
+                e.currentTarget.style.borderColor = "rgba(59,130,246,0.45)";
+                e.currentTarget.style.boxShadow = "0 0 34px rgba(59,130,246,0.22)";
+                e.currentTarget.style.transform = "translateY(-3px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#0D1117";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <div style={{
