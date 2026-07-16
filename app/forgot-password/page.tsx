@@ -3,26 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { login } from "@/app/lib/api";
-import { saveToken } from "@/app/lib/auth";
+import { forgotPassword } from "@/app/lib/api";
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) return;
+  const handleSubmit = async () => {
+    if (!email) return;
     setLoading(true);
     setError("");
     try {
-      const res = await login({ email, password });
-      saveToken(res.access_token);
-      router.push("/app");
+      await forgotPassword({ email });
+      router.push(`/reset-password?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -38,7 +35,6 @@ export default function LoginPage() {
       justifyContent: "center",
       fontFamily: "Inter, sans-serif",
     }}>
-      {/* Background glow */}
       <div style={{
         position: "fixed",
         top: "30%",
@@ -74,9 +70,14 @@ export default function LoginPage() {
             textShadow: "0 0 20px rgba(212,175,55,0.4)",
           }}>LEVI</span>
           <p style={{ color: "#6B7280", marginTop: 8, fontSize: 14 }}>
-            Sign in to your account
+            Reset your password
           </p>
         </div>
+
+        <p style={{ color: "#8B9CC4", fontSize: 13.5, marginBottom: 24, lineHeight: 1.6, textAlign: "center" }}>
+          Enter the email on your account. We'll send a 6-digit code you can use
+          to set a new password.
+        </p>
 
         {/* Fields */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -89,35 +90,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              style={{
-                width: "100%",
-                background: "#10141D",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 12,
-                padding: "14px 16px",
-                color: "white",
-                fontSize: 15,
-                outline: "none",
-              }}
-            />
-          </div>
-
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <label style={{ color: "#9CA3AF", fontSize: 13, display: "block" }}>
-                Password
-              </label>
-              <a href="/forgot-password" style={{ color: "#3B82F6", fontSize: 12.5, fontWeight: 600, textDecoration: "none" }}>
-                Forgot password?
-              </a>
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
               style={{
                 width: "100%",
                 background: "#10141D",
@@ -138,7 +111,7 @@ export default function LoginPage() {
           )}
 
           <button
-            onClick={handleLogin}
+            onClick={handleSubmit}
             disabled={loading}
             style={{
               width: "100%",
@@ -154,15 +127,15 @@ export default function LoginPage() {
               transition: "opacity 0.2s",
             }}
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? "Sending code..." : "Send Reset Code"}
           </button>
         </div>
 
         {/* Footer */}
         <p style={{ textAlign: "center", marginTop: 28, color: "#6B7280", fontSize: 14 }}>
-          Don&apos;t have an account?{" "}
-          <a href="/register" style={{ color: "#D4AF37", fontWeight: 600 }}>
-            Create one
+          Remembered your password?{" "}
+          <a href="/login" style={{ color: "#D4AF37", fontWeight: 600 }}>
+            Sign in
           </a>
         </p>
       </motion.div>

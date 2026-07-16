@@ -66,6 +66,27 @@ export async function resendOtp(data: { email: string }) {
   });
 }
 
+export async function forgotPassword(data: { email: string }) {
+  return request<{ message: string }>("/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function resetPassword(data: {
+  email: string;
+  otp: string;
+  new_password: string;
+}) {
+  return request<{ access_token: string; token_type: string }>(
+    "/reset-password",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
 // ── Conversations ─────────────────────────────────────────────────────────────
 
 export async function getConversations() {

@@ -30,11 +30,14 @@ type SidebarProps = {
   onSelectMode: (mode: LeviMode | null) => void;
   currentMode: LeviMode | null;
   refreshTrigger: number;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 };
 
 export default function Sidebar({
   currentConversationId, onSelectConversation, onNewChat,
   onSelectMode, currentMode, refreshTrigger,
+  mobileOpen = false, onCloseMobile,
 }: SidebarProps) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -44,6 +47,11 @@ export default function Sidebar({
   const [showRecent, setShowRecent] = useState(true);
   const [showModes, setShowModes] = useState(true);
   const editRef = useRef<HTMLInputElement>(null);
+
+  // On mobile the drawer is either fully open or fully hidden — the
+  // desktop "collapsed to icon rail" state doesn't make sense there, so
+  // ignore it while the mobile drawer is showing.
+  const effectiveCollapsed = mobileOpen ? false : collapsed;
 
   useEffect(() => { loadConversations(); }, [refreshTrigger]);
   useEffect(() => { if (editingId && editRef.current) editRef.current.focus(); }, [editingId]);
@@ -77,33 +85,70 @@ export default function Sidebar({
   function handleModeClick(mode: LeviMode) {
     if (currentMode?.id === mode.id) { onSelectMode(null); }
     else { onSelectMode(mode); onNewChat(); }
+    onCloseMobile?.();
   }
 
   return (
-    <motion.div
-      animate={{ width: collapsed ? 56 : 256 }}
-      transition={{ duration: 0.25, ease: "easeInOut" }}
-      style={{
-        height: "100vh",
-        background: "#060A10",
-        borderRight: "1px solid rgba(255,255,255,0.05)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        flexShrink: 0,
-      }}
-    >
+    <>
+      {/* Backdrop — only ever rendered while the mobile drawer is open, so it
+          never shows on desktop where mobileOpen stays false permanently. */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onCloseMobile}
+            style={{
+              position: "fixed", inset: 0, zIndex: 49,
+              background: "rgba(0,0,0,0.55)",
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        className={`sidebar-root ${mobileOpen ? "sidebar-open" : ""}`}
+        animate={{ width: effectiveCollapsed ? 56 : 256 }}
+        transition={{ duration: 0.25, ease: "easeInOut" }}
+        style={{
+          height: "100vh",
+          background: "#060A10",
+          borderRight: "1px solid rgba(255,255,255,0.05)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}
+      >
+        {/* Close button — only visible on mobile via the media query below */}
+        <button
+          className="sidebar-mobile-close"
+          onClick={onCloseMobile}
+          style={{
+            display: "none",
+            position: "absolute", top: 12, right: 12, zIndex: 2,
+            width: 30, height: 30, borderRadius: 8,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            color: "#8B9CC4", cursor: "pointer",
+            alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <X size={15} />
+        </button>
+
       {/* Header */}
       <div style={{
-        padding: collapsed ? "16px 0" : "16px 14px",
+        padding: effectiveCollapsed ? "16px 0" : "16px 14px",
         display: "flex",
         alignItems: "center",
-        justifyContent: collapsed ? "center" : "space-between",
+        justifyContent: effectiveCollapsed ? "center" : "space-between",
         borderBottom: "1px solid rgba(255,255,255,0.05)",
         flexShrink: 0,
         height: 52,
       }}>
-        {collapsed ? (
+        {effectiveCollapsed ? (
           <img
             src="/logo-mark.png"
             alt="Levi"
@@ -130,6 +175,7 @@ export default function Sidebar({
           </div>
         )}
         <button
+          className="sidebar-desktop-collapse"
           onClick={() => setCollapsed(!collapsed)}
           style={{
             background: "transparent", border: "none",
@@ -143,12 +189,12 @@ export default function Sidebar({
       </div>
 
       {/* New Chat */}
-      <div style={{ padding: collapsed ? "10px 8px" : "10px 10px", flexShrink: 0 }}>
+      <div style={{ padding: effectiveCollapsed ? "10px 8px" : "10px 10px", flexShrink: 0 }}>
         <button
-          onClick={() => { onNewChat(); onSelectMode(null); }}
+          onClick={() => { onNewChat(); onSelectMode(null); onCloseMobile?.(); }}
           style={{
             width: "100%",
-            padding: collapsed ? "9px 0" : "9px 12px",
+            padding: effectiveCollapsed ? "9px 0" : "9px 12px",
             background: "rgba(0,87,255,0.08)",
             border: "1px solid rgba(59,130,246,0.18)",
             borderRadius: 10,
@@ -156,7 +202,7 @@ export default function Sidebar({
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            justifyContent: collapsed ? "center" : "flex-start",
+            justifyContent: effectiveCollapsed ? "center" : "flex-start",
             gap: 8,
             fontSize: 13,
             fontWeight: 600,
@@ -164,15 +210,15 @@ export default function Sidebar({
           }}
         >
           <Plus size={14} />
-          {!collapsed && "New Chat"}
+          {!effectiveCollapsed && "New Chat"}
         </button>
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: collapsed ? "4px 8px" : "4px 10px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: effectiveCollapsed ? "4px 8px" : "4px 10px" }}>
 
         {/* Modes */}
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <button
             onClick={() => setShowModes(!showModes)}
             style={{
@@ -188,7 +234,7 @@ export default function Sidebar({
         )}
 
         <AnimatePresence>
-          {(showModes || collapsed) && (
+          {(showModes || effectiveCollapsed) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -201,10 +247,10 @@ export default function Sidebar({
                   <button
                     key={mode.id}
                     onClick={() => handleModeClick(mode)}
-                    title={collapsed ? mode.label : undefined}
+                    title={effectiveCollapsed ? mode.label : undefined}
                     style={{
                       width: "100%",
-                      padding: collapsed ? "9px 0" : "8px 10px",
+                      padding: effectiveCollapsed ? "9px 0" : "8px 10px",
                       background: isActive ? `${mode.color}12` : "transparent",
                       border: `1px solid ${isActive ? mode.color + "30" : "transparent"}`,
                       borderRadius: 9,
@@ -212,7 +258,7 @@ export default function Sidebar({
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: collapsed ? "center" : "flex-start",
+                      justifyContent: effectiveCollapsed ? "center" : "flex-start",
                       gap: 9, fontSize: 13, fontWeight: 500,
                       marginBottom: 1, transition: "all 0.15s", textAlign: "left",
                     }}
@@ -232,7 +278,7 @@ export default function Sidebar({
                     <span style={{ color: isActive ? mode.color : "#3D4F72", flexShrink: 0 }}>
                       {mode.icon}
                     </span>
-                    {!collapsed && mode.label}
+                    {!effectiveCollapsed && mode.label}
                   </button>
                 );
               })}
@@ -241,10 +287,10 @@ export default function Sidebar({
         </AnimatePresence>
 
         {/* Divider */}
-        {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,0.04)", margin: "6px 0 8px" }} />}
+        {!effectiveCollapsed && <div style={{ height: 1, background: "rgba(255,255,255,0.04)", margin: "6px 0 8px" }} />}
 
         {/* Recent */}
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <button
             onClick={() => setShowRecent(!showRecent)}
             style={{
@@ -260,7 +306,7 @@ export default function Sidebar({
         )}
 
         <AnimatePresence>
-          {(showRecent || collapsed) && (
+          {(showRecent || effectiveCollapsed) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -274,14 +320,14 @@ export default function Sidebar({
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0 }}
-                    onClick={() => onSelectConversation(conv.id)}
+                    onClick={() => { onSelectConversation(conv.id); onCloseMobile?.(); }}
                     style={{
-                      padding: collapsed ? "9px 0" : "7px 10px",
+                      padding: effectiveCollapsed ? "9px 0" : "7px 10px",
                       borderRadius: 9, marginBottom: 1, cursor: "pointer",
                       background: isActive ? "rgba(0,87,255,0.1)" : "transparent",
                       border: `1px solid ${isActive ? "rgba(59,130,246,0.2)" : "transparent"}`,
                       display: "flex", alignItems: "center",
-                      justifyContent: collapsed ? "center" : "space-between",
+                      justifyContent: effectiveCollapsed ? "center" : "space-between",
                       gap: 8, transition: "all 0.12s",
                     }}
                     onMouseEnter={(e) => {
@@ -293,7 +339,7 @@ export default function Sidebar({
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                       <MessageSquare size={12} color={isActive ? "#3B82F6" : "#3D4F72"} style={{ flexShrink: 0 }} />
-                      {!collapsed && (
+                      {!effectiveCollapsed && (
                         editingId === conv.id ? (
                           <input
                             ref={editRef}
@@ -322,7 +368,7 @@ export default function Sidebar({
                       )}
                     </div>
 
-                    {!collapsed && editingId !== conv.id && (
+                    {!effectiveCollapsed && editingId !== conv.id && (
                       <div style={{ display: "flex", gap: 2, flexShrink: 0, opacity: 0 }}
                         className="conv-actions">
                         <button onClick={(e) => startEdit(e, conv)}
@@ -336,7 +382,7 @@ export default function Sidebar({
                       </div>
                     )}
 
-                    {!collapsed && editingId === conv.id && (
+                    {!effectiveCollapsed && editingId === conv.id && (
                       <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
                         <button onClick={(e) => { e.stopPropagation(); confirmEdit(conv.id); }}
                           style={{ background: "none", border: "none", color: "#22C55E", cursor: "pointer", padding: 3 }}>
@@ -358,7 +404,7 @@ export default function Sidebar({
 
       {/* Footer */}
       <div style={{
-        padding: collapsed ? "12px 8px" : "12px 10px",
+        padding: effectiveCollapsed ? "12px 8px" : "12px 10px",
         borderTop: "1px solid rgba(255,255,255,0.04)",
         flexShrink: 0,
       }}>
@@ -366,21 +412,49 @@ export default function Sidebar({
           onClick={() => { removeToken(); router.push("/login"); }}
           style={{
             width: "100%",
-            padding: collapsed ? "9px 0" : "9px 12px",
+            padding: effectiveCollapsed ? "9px 0" : "9px 12px",
             background: "transparent",
             border: "1px solid rgba(255,255,255,0.04)",
             borderRadius: 10, color: "#3D4F72", cursor: "pointer",
             display: "flex", alignItems: "center",
-            justifyContent: collapsed ? "center" : "flex-start",
+            justifyContent: effectiveCollapsed ? "center" : "flex-start",
             gap: 8, fontSize: 12, transition: "all 0.15s",
           }}
           onMouseEnter={(e) => { e.currentTarget.style.color = "#8B9CC4"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = "#3D4F72"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"; }}
         >
           <LogOut size={13} />
-          {!collapsed && "Sign Out"}
+          {!effectiveCollapsed && "Sign Out"}
         </button>
       </div>
+
+      {/* Responsive rules — below 860px, the sidebar becomes an off-canvas
+          drawer (fixed, slides in from the left) instead of a permanent
+          inline rail. The .sidebar-open class (added only while mobileOpen
+          is true) triggers the slide-in. */}
+      <style>{`
+        @media (max-width: 860px) {
+          .sidebar-root {
+            position: fixed !important;
+            top: 0; left: 0;
+            height: 100vh !important;
+            width: 260px !important;
+            z-index: 50;
+            transform: translateX(-100%);
+            transition: transform 0.28s ease;
+          }
+          .sidebar-root.sidebar-open {
+            transform: translateX(0) !important;
+          }
+          .sidebar-mobile-close {
+            display: flex !important;
+          }
+          .sidebar-desktop-collapse {
+            display: none !important;
+          }
+        }
+      `}</style>
     </motion.div>
+    </>
   );
 }

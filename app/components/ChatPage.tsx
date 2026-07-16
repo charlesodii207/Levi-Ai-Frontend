@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { Menu } from "lucide-react";
 import Sidebar, { LeviMode } from "./Sidebar";
 import MessageList from "./MessageList";
 import PromptBox from "./PromptBox";
@@ -34,6 +35,7 @@ export default function ChatPage() {
   const [refreshSidebar, setRefreshSidebar] = useState(0);
   const [streamingContent, setStreamingContent] = useState("");
   const [currentMode, setCurrentMode] = useState<LeviMode | null>(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn()) router.push("/login");
@@ -115,6 +117,8 @@ export default function ChatPage() {
         onSelectMode={handleSelectMode}
         currentMode={currentMode}
         refreshTrigger={refreshSidebar}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
       {/* Main */}
@@ -146,6 +150,21 @@ export default function ChatPage() {
           zIndex: 2,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              className="mobile-sidebar-trigger"
+              onClick={() => setMobileSidebarOpen(true)}
+              style={{
+                display: "none",
+                width: 34, height: 34, borderRadius: 9,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "#8B9CC4", cursor: "pointer",
+                alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Menu size={17} />
+            </button>
             {currentMode && (
               <motion.div
                 initial={{ opacity: 0, x: -8 }}
@@ -349,6 +368,16 @@ export default function ChatPage() {
           </>
         )}
       </div>
+
+      {/* Below 860px, show the sidebar-open hamburger since the sidebar
+          itself becomes an off-canvas drawer at that same breakpoint. */}
+      <style>{`
+        @media (max-width: 860px) {
+          .mobile-sidebar-trigger {
+            display: flex !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
