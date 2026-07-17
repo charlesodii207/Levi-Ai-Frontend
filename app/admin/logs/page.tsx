@@ -17,13 +17,17 @@ type LogEntry = {
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   created_admin: { label: "Created admin", color: "#3B82F6" },
+  changed_admin_tier: { label: "Changed admin tier", color: "#D4AF37" },
   blocked_admin: { label: "Blocked admin", color: "#EF4444" },
   unblocked_admin: { label: "Unblocked admin", color: "#22C55E" },
+  deleted_admin: { label: "Deleted admin", color: "#EF4444" },
   changed_own_password: { label: "Changed own password", color: "#8B9CC4" },
   suspended_user: { label: "Suspended user", color: "#EF4444" },
   activated_user: { label: "Activated user", color: "#22C55E" },
   deleted_user: { label: "Deleted user", color: "#EF4444" },
 };
+
+const ALLOWED_TIERS = ["owner", "super_admin"];
 
 export default function AdminLogsPage() {
   const router = useRouter();
@@ -34,7 +38,7 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     getAdminMe().then((me) => {
-      if (me.role !== "senior") {
+      if (!ALLOWED_TIERS.includes(me.tier)) {
         router.push("/admin");
         return;
       }
@@ -50,7 +54,7 @@ export default function AdminLogsPage() {
       const data = await getActionLogs(200);
       setLogs(data);
     } catch (err: any) {
-      if (err.message?.toLowerCase().includes("senior")) {
+      if (err.message?.toLowerCase().includes("permission") || err.message?.toLowerCase().includes("access")) {
         router.push("/admin");
         return;
       }

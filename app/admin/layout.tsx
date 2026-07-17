@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getAdminToken, clearAdminToken, getAdminMe } from "@/app/lib/adminApi";
+import { TIER_LABELS, TIER_COLORS, PLATFORM_ROLE_LABELS } from "@/app/lib/tiers";
 
 type AdminInfo = {
   id: number;
   username: string;
-  role: "senior" | "junior";
+  tier: "owner" | "super_admin" | "admin" | "moderator";
+  platform_role: string | null;
   status: string;
 };
 
@@ -54,15 +56,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const me = await getAdminMe();
         setAdmin(me);
 
-        // Forced password change — send them there unless they're
-        // already on that page.
         if (me.must_change_password && !isChangePasswordRoute) {
           router.push("/admin/change-password");
           return;
         }
 
-        // Already changed their password but sitting on the change
-        // password page — send them to the dashboard instead.
         if (!me.must_change_password && isChangePasswordRoute) {
           router.push("/admin");
           return;
@@ -80,10 +78,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // Every authenticated call already touches last_active_at on the
-  // backend (via getAdminMe below), so a periodic ping here is what
-  // keeps "you" showing online in Users/Admins tables while you sit
-  // on a page without navigating anywhere.
+  // Keeps "you" showing online in Users/Admins tables while you sit on
+  // a page without navigating — every authenticated call touches
+  // last_active_at on the backend.
   useEffect(() => {
     if (isPublicRoute || isChangePasswordRoute) return;
     const interval = setInterval(() => {
@@ -98,27 +95,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push("/admin/login");
   }
 
-  // Login page and the loading gap render with no chrome at all
   if (isPublicRoute || checking) {
     return <>{children}</>;
   }
 
-  // Change-password page also renders without the sidebar — it's a
-  // focused, single-task screen
   if (isChangePasswordRoute) {
     return <>{children}</>;
   }
 
+  const tier = admin?.tier;
+
   const navItems = [
-    { label: "Dashboard", href: "/admin", icon: "📊", seniorOnly: false },
-    { label: "Users", href: "/admin/users", icon: "👥", seniorOnly: false },
-    { label: "Admins", href: "/admin/admins", icon: "🛡️", seniorOnly: true },
-    { label: "Action Logs", href: "/admin/logs", icon: "📋", seniorOnly: true },
+    { label: "Dashboard", href: "/admin", icon: "📊", visible: true },
+    { label: "Users", href: "/admin/users", icon: "👥", visible: true },
+    // Admins module: everyone except Moderator (per the visibility model)
+    { label: "Admins", href: "/admin/admins", icon: "🛡️", visible: tier !== "moderator" },
+    // Action Logs: Owner + Super Admin only
+    { label: "Action Logs", href: "/admin/logs", icon: "📋", visible: tier === "owner" || tier === "super_admin" },
   ];
 
-  const visibleNavItems = navItems.filter(
-    (item) => !item.seniorOnly || admin?.role === "senior"
-  );
+  const visibleNavItems = navItems.filter((item) => item.visible);
+
+  const tierLabel = tier ? TIER_LABELS[tier] : "";
+  const tierColor = tier ? TIER_COLORS[tier] : "#8B9CC4";
+  const roleSubLabel = tier === "super_admin"
+    ? "Executive"
+    : tier === "admin" && admin?.platform_role
+      ? PLATFORM_ROLE_LABELS[admin.platform_role]
+      : null;
 
   return (
     <div style={{
@@ -191,13 +195,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div style={{
               display: "inline-block", marginTop: 8,
               padding: "3px 10px", borderRadius: 999,
-              background: admin?.role === "senior" ? "rgba(212,175,55,0.12)" : "rgba(59,130,246,0.12)",
-              border: `1px solid ${admin?.role === "senior" ? "rgba(212,175,55,0.3)" : "rgba(59,130,246,0.3)"}`,
-              color: admin?.role === "senior" ? "#D4AF37" : "#3B82F6",
+              background: `${tierColor}1F`,
+              border: `1px solid ${tierColor}4D`,
+              color: tierColor,
               fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
             }}>
-              {admin?.role}
+              {tierLabel}
             </div>
+            {roleSubLabel && (
+              <div style={{ color: "#3D4F72", fontSize: 11, marginTop: 6 }}>
+                {roleSubLabel}
+              </div>
+            )}
           </div>
 
           <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>

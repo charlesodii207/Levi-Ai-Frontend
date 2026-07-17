@@ -80,18 +80,29 @@ export function getAdminMe() {
 }
 
 // ---------------------------------------------------------------------------
-// Admin management (senior-only on the backend — UI should hide these
-// for junior admins too, but the backend is the real enforcement)
+// Admin management
 // ---------------------------------------------------------------------------
 
 export function listAdmins() {
   return adminRequest("/admin/admins");
 }
 
-export function createAdmin(username: string, password: string, role: "senior" | "junior") {
+export function createAdmin(
+  username: string,
+  password: string,
+  tier: "owner" | "super_admin" | "admin" | "moderator",
+  platform_role?: string | null
+) {
   return adminRequest("/admin/admins", {
     method: "POST",
-    body: JSON.stringify({ username, password, role }),
+    body: JSON.stringify({ username, password, tier, platform_role: platform_role || null }),
+  });
+}
+
+export function changeAdminTier(adminId: number, newTier: string) {
+  return adminRequest(`/admin/admins/${adminId}/change-tier`, {
+    method: "POST",
+    body: JSON.stringify({ new_tier: newTier }),
   });
 }
 
@@ -103,12 +114,16 @@ export function unblockAdmin(adminId: number) {
   return adminRequest(`/admin/admins/${adminId}/unblock`, { method: "POST" });
 }
 
+export function deleteAdmin(adminId: number) {
+  return adminRequest(`/admin/admins/${adminId}`, { method: "DELETE" });
+}
+
 export function getActionLogs(limit = 100) {
   return adminRequest(`/admin/logs?limit=${limit}`);
 }
 
 // ---------------------------------------------------------------------------
-// User management (shared — senior + junior)
+// User management (shared — all tiers)
 // ---------------------------------------------------------------------------
 
 export function listUsers(skip = 0, limit = 50) {

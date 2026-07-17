@@ -16,18 +16,22 @@ type User = {
   last_active_at: string | null;
 };
 
+const CAN_DELETE_TIERS = ["owner", "super_admin"];
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actioningId, setActioningId] = useState<number | null>(null);
-  const [isSenior, setIsSenior] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
   const [skip, setSkip] = useState(0);
   const [, forceTick] = useState(0);
   const limit = 50;
 
   useEffect(() => {
-    getAdminMe().then((me) => setIsSenior(me.role === "senior")).catch(() => {});
+    getAdminMe()
+      .then((me) => setCanDelete(CAN_DELETE_TIERS.includes(me.tier)))
+      .catch(() => {});
   }, []);
 
   async function loadUsers() {
@@ -48,8 +52,6 @@ export default function AdminUsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip]);
 
-  // Re-render every 30s so online dots go gray the moment someone
-  // crosses the 3-minute inactivity threshold, without needing a refetch.
   useEffect(() => {
     const interval = setInterval(() => forceTick((t) => t + 1), 30_000);
     return () => clearInterval(interval);
@@ -202,7 +204,7 @@ export default function AdminUsersPage() {
                             Activate
                           </button>
                         )}
-                        {isSenior && (
+                        {canDelete && (
                           <button
                             onClick={() => handleDelete(user)}
                             disabled={actioningId === user.id}
