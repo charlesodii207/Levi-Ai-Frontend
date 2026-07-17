@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { listUsers, suspendUser, activateUser, deleteUser, getAdminMe } from "@/app/lib/adminApi";
+import { isOnline, OnlineDot } from "@/app/lib/onlineStatus";
 
 type User = {
   id: number;
@@ -12,6 +13,7 @@ type User = {
   created_at: string;
   last_login_at: string | null;
   last_login_ip: string | null;
+  last_active_at: string | null;
 };
 
 export default function AdminUsersPage() {
@@ -21,6 +23,7 @@ export default function AdminUsersPage() {
   const [actioningId, setActioningId] = useState<number | null>(null);
   const [isSenior, setIsSenior] = useState(false);
   const [skip, setSkip] = useState(0);
+  const [, forceTick] = useState(0);
   const limit = 50;
 
   useEffect(() => {
@@ -44,6 +47,13 @@ export default function AdminUsersPage() {
     loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip]);
+
+  // Re-render every 30s so online dots go gray the moment someone
+  // crosses the 3-minute inactivity threshold, without needing a refetch.
+  useEffect(() => {
+    const interval = setInterval(() => forceTick((t) => t + 1), 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function handleSuspend(user: User) {
     setActioningId(user.id);
@@ -122,11 +132,11 @@ export default function AdminUsersPage() {
           borderRadius: 16,
           overflowX: "auto",
         }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                {["Username", "Email", "Status", "Verified", "Last Login", "Last IP", "Joined", "Actions"].map((h) => (
-                  <th key={h} style={{
+                {["", "Username", "Email", "Status", "Verified", "Last Login", "Last IP", "Joined", "Actions"].map((h, i) => (
+                  <th key={i} style={{
                     textAlign: "left", padding: "14px 16px",
                     color: "#8B9CC4", fontSize: 12, fontWeight: 700,
                     textTransform: "uppercase", letterSpacing: 0.5,
@@ -138,68 +148,74 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr key={user.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <td style={{ padding: "14px 16px", color: "#F0F4FF", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-                    {user.username}
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                    {user.email}
-                  </td>
-                  <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                    <span style={{
-                      padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-                      background: user.is_active ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                      color: user.is_active ? "#22C55E" : "#EF4444",
-                      border: `1px solid ${user.is_active ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
-                    }}>
-                      {user.is_active ? "Active" : "Suspended"}
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                    {user.is_verified ? "✓" : "—"}
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                    {formatDate(user.last_login_at)}
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap", fontFamily: "monospace" }}>
-                    {user.last_login_ip || "—"}
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                    {formatDate(user.created_at)}
-                  </td>
-                  <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {user.is_active ? (
-                        <button
-                          onClick={() => handleSuspend(user)}
-                          disabled={actioningId === user.id}
-                          style={actionBtnStyle("#EF4444")}
-                        >
-                          Suspend
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleActivate(user)}
-                          disabled={actioningId === user.id}
-                          style={actionBtnStyle("#22C55E")}
-                        >
-                          Activate
-                        </button>
-                      )}
-                      {isSenior && (
-                        <button
-                          onClick={() => handleDelete(user)}
-                          disabled={actioningId === user.id}
-                          style={actionBtnStyle("#8B9CC4")}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {users.map((user) => {
+                const online = isOnline(user.last_active_at);
+                return (
+                  <tr key={user.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <td style={{ padding: "14px 8px 14px 16px" }}>
+                      <OnlineDot online={online} />
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#F0F4FF", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {user.username}
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
+                      {user.email}
+                    </td>
+                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                      <span style={{
+                        padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: user.is_active ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                        color: user.is_active ? "#22C55E" : "#EF4444",
+                        border: `1px solid ${user.is_active ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+                      }}>
+                        {user.is_active ? "Active" : "Suspended"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
+                      {user.is_verified ? "✓" : "—"}
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
+                      {formatDate(user.last_login_at)}
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                      {user.last_login_ip || "—"}
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
+                      {formatDate(user.created_at)}
+                    </td>
+                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {user.is_active ? (
+                          <button
+                            onClick={() => handleSuspend(user)}
+                            disabled={actioningId === user.id}
+                            style={actionBtnStyle("#EF4444")}
+                          >
+                            Suspend
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActivate(user)}
+                            disabled={actioningId === user.id}
+                            style={actionBtnStyle("#22C55E")}
+                          >
+                            Activate
+                          </button>
+                        )}
+                        {isSenior && (
+                          <button
+                            onClick={() => handleDelete(user)}
+                            disabled={actioningId === user.id}
+                            style={actionBtnStyle("#8B9CC4")}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

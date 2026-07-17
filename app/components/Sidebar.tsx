@@ -438,6 +438,7 @@ export default function Sidebar({
             position: fixed !important;
             top: 0; left: 0;
             height: 100vh !important;
+            height: 100dvh !important;
             width: 260px !important;
             z-index: 50;
             transform: translateX(-100%);

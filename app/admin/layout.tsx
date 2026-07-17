@@ -80,6 +80,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // Every authenticated call already touches last_active_at on the
+  // backend (via getAdminMe below), so a periodic ping here is what
+  // keeps "you" showing online in Users/Admins tables while you sit
+  // on a page without navigating anywhere.
+  useEffect(() => {
+    if (isPublicRoute || isChangePasswordRoute) return;
+    const interval = setInterval(() => {
+      getAdminMe().catch(() => {});
+    }, 60_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPublicRoute, isChangePasswordRoute]);
+
   function handleLogout() {
     clearAdminToken();
     router.push("/admin/login");
@@ -167,9 +180,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
 
           <div style={{ padding: "0 8px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 16 }}>
-            <div style={{ color: "#F0F4FF", fontSize: 14, fontWeight: 700 }}>{admin?.username}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{
+                display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+                background: "#22C55E", boxShadow: "0 0 6px rgba(34,197,94,0.6)",
+                flexShrink: 0,
+              }} />
+              <div style={{ color: "#F0F4FF", fontSize: 14, fontWeight: 700 }}>{admin?.username}</div>
+            </div>
             <div style={{
-              display: "inline-block", marginTop: 6,
+              display: "inline-block", marginTop: 8,
               padding: "3px 10px", borderRadius: 999,
               background: admin?.role === "senior" ? "rgba(212,175,55,0.12)" : "rgba(59,130,246,0.12)",
               border: `1px solid ${admin?.role === "senior" ? "rgba(212,175,55,0.3)" : "rgba(59,130,246,0.3)"}`,

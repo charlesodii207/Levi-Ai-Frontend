@@ -161,6 +161,8 @@ export default function ChatPage() {
                 color: "#8B9CC4", cursor: "pointer",
                 alignItems: "center", justifyContent: "center",
                 flexShrink: 0,
+                position: "relative",
+                zIndex: 51,
               }}
             >
               <Menu size={17} />

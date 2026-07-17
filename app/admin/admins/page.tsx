@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { listAdmins, createAdmin, blockAdmin, unblockAdmin, getAdminMe } from "@/app/lib/adminApi";
+import { isOnline, OnlineDot } from "@/app/lib/onlineStatus";
 
 type AdminUser = {
   id: number;
@@ -13,6 +14,7 @@ type AdminUser = {
   created_at: string;
   last_login_at: string | null;
   last_login_ip: string | null;
+  last_active_at: string | null;
 };
 
 export default function AdminAdminsPage() {
@@ -23,6 +25,7 @@ export default function AdminAdminsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actioningId, setActioningId] = useState<number | null>(null);
+  const [, forceTick] = useState(0);
 
   // Create-admin form
   const [showForm, setShowForm] = useState(false);
@@ -39,8 +42,6 @@ export default function AdminAdminsPage() {
       const data = await listAdmins();
       setAdmins(data);
     } catch (err: any) {
-      // A 403 here means a junior admin navigated to this URL directly —
-      // the backend correctly refused, so send them back to the dashboard.
       if (err.message?.toLowerCase().includes("senior")) {
         router.push("/admin");
         return;
@@ -61,6 +62,13 @@ export default function AdminAdminsPage() {
       loadAdmins();
     }).catch(() => router.push("/admin/login"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-render every 30s so online dots go gray the moment someone
+  // crosses the 3-minute inactivity threshold, without needing a refetch.
+  useEffect(() => {
+    const interval = setInterval(() => forceTick((t) => t + 1), 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
@@ -238,11 +246,11 @@ export default function AdminAdminsPage() {
           borderRadius: 16,
           overflowX: "auto",
         }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                {["Username", "Role", "Status", "Last Login", "Last IP", "Created", "Actions"].map((h) => (
-                  <th key={h} style={{
+                {["", "Username", "Role", "Status", "Last Login", "Last IP", "Created", "Actions"].map((h, i) => (
+                  <th key={i} style={{
                     textAlign: "left", padding: "14px 16px",
                     color: "#8B9CC4", fontSize: 12, fontWeight: 700,
                     textTransform: "uppercase", letterSpacing: 0.5,
@@ -254,70 +262,76 @@ export default function AdminAdminsPage() {
               </tr>
             </thead>
             <tbody>
-              {admins.map((admin) => (
-                <tr key={admin.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <td style={{ padding: "14px 16px", color: "#F0F4FF", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-                    {admin.username}
-                    {admin.id === currentAdminId && (
-                      <span style={{ color: "#3D4F72", fontWeight: 500 }}> (you)</span>
-                    )}
-                  </td>
-                  <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                    <span style={{
-                      padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-                      background: admin.role === "senior" ? "rgba(212,175,55,0.12)" : "rgba(59,130,246,0.12)",
-                      color: admin.role === "senior" ? "#D4AF37" : "#3B82F6",
-                      border: `1px solid ${admin.role === "senior" ? "rgba(212,175,55,0.3)" : "rgba(59,130,246,0.3)"}`,
-                      textTransform: "uppercase",
-                    }}>
-                      {admin.role}
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                    <span style={{
-                      padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-                      background: admin.status === "active" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                      color: admin.status === "active" ? "#22C55E" : "#EF4444",
-                      border: `1px solid ${admin.status === "active" ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
-                    }}>
-                      {admin.status === "active" ? "Active" : "Blocked"}
-                    </span>
-                    {admin.must_change_password && admin.status === "active" && (
-                      <div style={{ color: "#3D4F72", fontSize: 11, marginTop: 4 }}>Password not set</div>
-                    )}
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                    {formatDate(admin.last_login_at)}
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap", fontFamily: "monospace" }}>
-                    {admin.last_login_ip || "—"}
-                  </td>
-                  <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                    {formatDate(admin.created_at)}
-                  </td>
-                  <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                    {admin.id === currentAdminId ? (
-                      <span style={{ color: "#3D4F72", fontSize: 12 }}>—</span>
-                    ) : admin.status === "active" ? (
-                      <button
-                        onClick={() => handleBlock(admin)}
-                        disabled={actioningId === admin.id}
-                        style={actionBtnStyle("#EF4444")}
-                      >
-                        Block
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleUnblock(admin)}
-                        disabled={actioningId === admin.id}
-                        style={actionBtnStyle("#22C55E")}
-                      >
-                        Unblock
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {admins.map((admin) => {
+                const online = isOnline(admin.last_active_at);
+                return (
+                  <tr key={admin.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <td style={{ padding: "14px 8px 14px 16px" }}>
+                      <OnlineDot online={online} />
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#F0F4FF", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {admin.username}
+                      {admin.id === currentAdminId && (
+                        <span style={{ color: "#3D4F72", fontWeight: 500 }}> (you)</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                      <span style={{
+                        padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: admin.role === "senior" ? "rgba(212,175,55,0.12)" : "rgba(59,130,246,0.12)",
+                        color: admin.role === "senior" ? "#D4AF37" : "#3B82F6",
+                        border: `1px solid ${admin.role === "senior" ? "rgba(212,175,55,0.3)" : "rgba(59,130,246,0.3)"}`,
+                        textTransform: "uppercase",
+                      }}>
+                        {admin.role}
+                      </span>
+                    </td>
+                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                      <span style={{
+                        padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: admin.status === "active" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                        color: admin.status === "active" ? "#22C55E" : "#EF4444",
+                        border: `1px solid ${admin.status === "active" ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+                      }}>
+                        {admin.status === "active" ? "Active" : "Blocked"}
+                      </span>
+                      {admin.must_change_password && admin.status === "active" && (
+                        <div style={{ color: "#3D4F72", fontSize: 11, marginTop: 4 }}>Password not set</div>
+                      )}
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
+                      {formatDate(admin.last_login_at)}
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                      {admin.last_login_ip || "—"}
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
+                      {formatDate(admin.created_at)}
+                    </td>
+                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                      {admin.id === currentAdminId ? (
+                        <span style={{ color: "#3D4F72", fontSize: 12 }}>—</span>
+                      ) : admin.status === "active" ? (
+                        <button
+                          onClick={() => handleBlock(admin)}
+                          disabled={actioningId === admin.id}
+                          style={actionBtnStyle("#EF4444")}
+                        >
+                          Block
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleUnblock(admin)}
+                          disabled={actioningId === admin.id}
+                          style={actionBtnStyle("#22C55E")}
+                        >
+                          Unblock
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
