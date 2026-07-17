@@ -44,6 +44,7 @@ export default function AdminAdminsPage() {
   const [error, setError] = useState("");
   const [actioningId, setActioningId] = useState<number | null>(null);
   const [pendingTier, setPendingTier] = useState<Record<number, string>>({});
+  const [pendingDept, setPendingDept] = useState<Record<number, string>>({});
   const [, forceTick] = useState(0);
 
   // Create-admin form
@@ -171,6 +172,11 @@ export default function AdminAdminsPage() {
     const target = pendingTier[admin.id];
     if (!target || target === admin.tier) return;
 
+    if (target === "admin" && !pendingDept[admin.id]) {
+      setError("Select a department before promoting to Administrator.");
+      return;
+    }
+
     const confirmed = window.confirm(
       `Change "${admin.username}" from ${TIER_LABELS[admin.tier]} to ${TIER_LABELS[target]}?`
     );
@@ -178,13 +184,18 @@ export default function AdminAdminsPage() {
 
     setActioningId(admin.id);
     try {
-      await changeAdminTier(admin.id, target);
+      await changeAdminTier(admin.id, target, target === "admin" ? pendingDept[admin.id] : null);
       setAdmins((prev) => prev.map((a) =>
         a.id === admin.id
-          ? { ...a, tier: target as any, platform_role: target === "admin" ? a.platform_role : null }
+          ? { ...a, tier: target as any, platform_role: target === "admin" ? pendingDept[admin.id] : null }
           : a
       ));
       setPendingTier((prev) => {
+        const next = { ...prev };
+        delete next[admin.id];
+        return next;
+      });
+      setPendingDept((prev) => {
         const next = { ...prev };
         delete next[admin.id];
         return next;
@@ -449,27 +460,53 @@ export default function AdminAdminsPage() {
                             </button>
                           </div>
                           {tierOptions.length > 0 && (
-                            <div style={{ display: "flex", gap: 6 }}>
-                              <select
-                                value={pendingTier[admin.id] || admin.tier}
-                                onChange={(e) => setPendingTier((prev) => ({ ...prev, [admin.id]: e.target.value }))}
-                                style={{
-                                  ...inputStyle, padding: "5px 8px", fontSize: 11,
-                                  cursor: "pointer", width: "auto", flex: 1,
-                                }}
-                              >
-                                {tierOptions.map((t) => (
-                                  <option key={t} value={t}>{TIER_LABELS[t]}</option>
-                                ))}
-                              </select>
-                              {pendingTier[admin.id] && pendingTier[admin.id] !== admin.tier && (
-                                <button
-                                  onClick={() => handleApplyTierChange(admin)}
-                                  disabled={actioningId === admin.id}
-                                  style={actionBtnStyle("#3B82F6")}
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <select
+                                  value={pendingTier[admin.id] || admin.tier}
+                                  onChange={(e) => setPendingTier((prev) => ({ ...prev, [admin.id]: e.target.value }))}
+                                  style={{
+                                    ...inputStyle, padding: "5px 8px", fontSize: 11,
+                                    cursor: "pointer", width: "auto", flex: 1,
+                                  }}
                                 >
-                                  Apply
-                                </button>
+                                  {tierOptions.map((t) => (
+                                    <option key={t} value={t}>{TIER_LABELS[t]}</option>
+                                  ))}
+                                </select>
+                                {pendingTier[admin.id] && pendingTier[admin.id] !== admin.tier && pendingTier[admin.id] !== "admin" && (
+                                  <button
+                                    onClick={() => handleApplyTierChange(admin)}
+                                    disabled={actioningId === admin.id}
+                                    style={actionBtnStyle("#3B82F6")}
+                                  >
+                                    Apply
+                                  </button>
+                                )}
+                              </div>
+                              {pendingTier[admin.id] === "admin" && (
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <select
+                                    value={pendingDept[admin.id] || ""}
+                                    onChange={(e) => setPendingDept((prev) => ({ ...prev, [admin.id]: e.target.value }))}
+                                    style={{
+                                      ...inputStyle, padding: "5px 8px", fontSize: 11,
+                                      cursor: "pointer", width: "auto", flex: 1,
+                                    }}
+                                  >
+                                    <option value="">Select department...</option>
+                                    {PLATFORM_ROLES.map((r) => (
+                                      <option key={r} value={r}>{PLATFORM_ROLE_LABELS[r]}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => handleApplyTierChange(admin)}
+                                    disabled={actioningId === admin.id || !pendingDept[admin.id]}
+                                    style={actionBtnStyle("#3B82F6")}
+                                  >
+                                    Apply
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}

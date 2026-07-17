@@ -99,10 +99,10 @@ export function createAdmin(
   });
 }
 
-export function changeAdminTier(adminId: number, newTier: string) {
+export function changeAdminTier(adminId: number, newTier: string, platformRole?: string | null) {
   return adminRequest(`/admin/admins/${adminId}/change-tier`, {
     method: "POST",
-    body: JSON.stringify({ new_tier: newTier }),
+    body: JSON.stringify({ new_tier: newTier, platform_role: platformRole || null }),
   });
 }
 
