@@ -41,9 +41,7 @@ function canDeleteAdmin(actorTier: string, targetTier: string): boolean {
 }
 
 function canResetPassword(actorTier: string, targetTier: string): boolean {
-  if (actorTier === "owner") return targetTier !== "owner";
-  if (actorTier === "super_admin") return targetTier === "super_admin" || targetTier === "admin" || targetTier === "moderator";
-  return false;
+  return actorTier === "owner" && targetTier !== "owner";
 }
 
 export default function AdminAdminsPage() {
