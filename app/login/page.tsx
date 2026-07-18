@@ -132,9 +132,19 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p style={{ color: "#EF4444", fontSize: 13, textAlign: "center" }}>
-              {error}
-            </p>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ color: "#EF4444", fontSize: 13, margin: 0 }}>
+                {error}
+              </p>
+              {error.toLowerCase().includes("disabled") && (
+                <a
+                  href={`/appeal?email=${encodeURIComponent(email)}`}
+                  style={{ color: "#3B82F6", fontSize: 13, fontWeight: 600, textDecoration: "none", marginTop: 6, display: "inline-block" }}
+                >
+                  Submit an appeal →
+                </a>
+              )}
+            </div>
           )}
 
           <button
