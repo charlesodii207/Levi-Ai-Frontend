@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   blocked_admin: { label: "Blocked admin", color: "#EF4444" },
   unblocked_admin: { label: "Unblocked admin", color: "#22C55E" },
   deleted_admin: { label: "Deleted admin", color: "#EF4444" },
+  reset_admin_password: { label: "Reset admin password", color: "#3B82F6" },
   changed_own_password: { label: "Changed own password", color: "#8B9CC4" },
   suspended_user: { label: "Suspended user", color: "#EF4444" },
   activated_user: { label: "Activated user", color: "#22C55E" },

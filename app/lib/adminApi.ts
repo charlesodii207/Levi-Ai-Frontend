@@ -118,6 +118,10 @@ export function deleteAdmin(adminId: number) {
   return adminRequest(`/admin/admins/${adminId}`, { method: "DELETE" });
 }
 
+export function resetAdminPassword(adminId: number) {
+  return adminRequest(`/admin/admins/${adminId}/reset-password`, { method: "POST" });
+}
+
 export function getActionLogs(limit = 100) {
   return adminRequest(`/admin/logs?limit=${limit}`);
 }

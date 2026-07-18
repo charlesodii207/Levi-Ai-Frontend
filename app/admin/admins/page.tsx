@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   listAdmins, createAdmin, blockAdmin, unblockAdmin,
-  deleteAdmin, changeAdminTier, getAdminMe,
+  deleteAdmin, changeAdminTier, resetAdminPassword, getAdminMe,
 } from "@/app/lib/adminApi";
 import { isOnline, OnlineDot } from "@/app/lib/onlineStatus";
 import {
   TIER_LABELS, TIER_COLORS, PLATFORM_ROLE_LABELS, PLATFORM_ROLES,
   creatableTiersFor, assignableTiersFor,
 } from "@/app/lib/tiers";
-import { IconPlus, IconMoreVertical, IconBan, IconCheckCircle, IconTrash, IconArrowUpDown, IconSearch } from "@/app/components/Icons";
-import { ConfirmModal, useConfirm } from "@/app/components/ConfirmModal";
+import { IconPlus, IconMoreVertical, IconBan, IconCheckCircle, IconTrash, IconArrowUpDown, IconSearch, IconLock } from "@/app/components/Icons";
+import { ConfirmModal, PasswordRevealModal, useConfirm } from "@/app/components/ConfirmModal";
 
 type AdminUser = {
   id: number;
@@ -40,6 +40,12 @@ function canDeleteAdmin(actorTier: string, targetTier: string): boolean {
   return false; // admin, moderator can never delete an admin account
 }
 
+function canResetPassword(actorTier: string, targetTier: string): boolean {
+  if (actorTier === "owner") return targetTier !== "owner";
+  if (actorTier === "super_admin") return targetTier === "super_admin" || targetTier === "admin" || targetTier === "moderator";
+  return false;
+}
+
 export default function AdminAdminsPage() {
   const router = useRouter();
   const confirm = useConfirm();
@@ -56,6 +62,7 @@ export default function AdminAdminsPage() {
   const [pendingDept, setPendingDept] = useState<Record<number, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  const [revealPassword, setRevealPassword] = useState<{ username: string; password: string } | null>(null);
   const [, forceTick] = useState(0);
 
   const [showForm, setShowForm] = useState(false);
@@ -172,6 +179,27 @@ export default function AdminAdminsPage() {
           setAdmins((prev) => prev.filter((a) => a.id !== admin.id));
         } catch (err: any) {
           setError(err.message || "Failed to delete admin.");
+        } finally {
+          setActioningId(null);
+        }
+      },
+    });
+  }
+
+  function doResetPassword(admin: AdminUser) {
+    setOpenMenuId(null);
+    confirm.ask({
+      title: "Reset this admin's password?",
+      message: `A new temporary password will be generated for "${admin.username}". They'll be required to set their own on next login.`,
+      confirmLabel: "Reset password",
+      onConfirm: async () => {
+        setActioningId(admin.id);
+        try {
+          const res = await resetAdminPassword(admin.id);
+          setAdmins((prev) => prev.map((a) => a.id === admin.id ? { ...a, must_change_password: true } : a));
+          setRevealPassword({ username: admin.username, password: res.temporary_password });
+        } catch (err: any) {
+          setError(err.message || "Failed to reset password.");
         } finally {
           setActioningId(null);
         }
@@ -413,6 +441,7 @@ export default function AdminAdminsPage() {
                   const online = isOnline(admin.last_active_at);
                   const manageable = !isSelf && currentAdmin && canManage(currentAdmin.tier, admin.tier);
                   const deletable = !isSelf && currentAdmin && canDeleteAdmin(currentAdmin.tier, admin.tier);
+                  const resettable = !isSelf && currentAdmin && canResetPassword(currentAdmin.tier, admin.tier);
                   const tierOptions = currentAdmin ? assignableTiersFor(currentAdmin.tier, admin.tier) : [];
                   const isMasked = admin.status === null;
                   const menuOpen = openMenuId === admin.id;
@@ -461,7 +490,7 @@ export default function AdminAdminsPage() {
                       </td>
                       <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{formatDate(admin.created_at)}</td>
                       <td style={{ padding: "15px 16px", textAlign: "right" }}>
-                        {!manageable ? (
+                        {!manageable && !resettable ? (
                           <span style={{ color: "#3D4F72", fontSize: 12 }}>—</span>
                         ) : (
                           <>
@@ -490,12 +519,17 @@ export default function AdminAdminsPage() {
                               }}>
                                 {tierPanelId !== admin.id ? (
                                   <>
-                                    {admin.status === "active" ? (
-                                      <MenuItem icon={<IconBan size={15} />} label="Block admin" color="#EF4444" onClick={() => doBlock(admin)} />
-                                    ) : (
-                                      <MenuItem icon={<IconCheckCircle size={15} />} label="Unblock admin" color="#22C55E" onClick={() => doUnblock(admin)} />
+                                    {manageable && (
+                                      admin.status === "active" ? (
+                                        <MenuItem icon={<IconBan size={15} />} label="Block admin" color="#EF4444" onClick={() => doBlock(admin)} />
+                                      ) : (
+                                        <MenuItem icon={<IconCheckCircle size={15} />} label="Unblock admin" color="#22C55E" onClick={() => doUnblock(admin)} />
+                                      )
                                     )}
-                                    {tierOptions.length > 0 && (
+                                    {resettable && (
+                                      <MenuItem icon={<IconLock size={15} />} label="Reset password" color="#3B82F6" onClick={() => doResetPassword(admin)} />
+                                    )}
+                                    {manageable && tierOptions.length > 0 && (
                                       <MenuItem icon={<IconArrowUpDown size={15} />} label="Change tier" color="#3B82F6" onClick={() => setTierPanelId(admin.id)} />
                                     )}
                                     {deletable && (
@@ -553,6 +587,12 @@ export default function AdminAdminsPage() {
       )}
 
       <ConfirmModal {...confirm.props} />
+      <PasswordRevealModal
+        open={!!revealPassword}
+        username={revealPassword?.username || ""}
+        password={revealPassword?.password || ""}
+        onClose={() => setRevealPassword(null)}
+      />
     </div>
   );
 }
