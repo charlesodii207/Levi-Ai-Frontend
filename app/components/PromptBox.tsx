@@ -7,7 +7,7 @@ import { getToken } from "../lib/auth";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type PromptBoxProps = {
-  onSend: (message: string) => void;
+  onSend: (message: string, hiddenContext?: string) => void;
   disabled?: boolean;
 };
 
@@ -42,52 +42,54 @@ export default function PromptBox({ onSend, disabled = false }: PromptBoxProps) 
     const trimmed = message.trim();
     if ((!trimmed && !attachedFile) || disabled || isAttaching) return;
 
-    let outgoingMessage = trimmed;
-
-    // One-off attachment: extract text via /chat/attach, fold it into this
-    // single message. Nothing gets saved permanently — this is scoped to
-    // this message only, unlike the /knowledge page uploads.
-    if (attachedFile) {
-      setIsAttaching(true);
-      setAttachError(null);
-      try {
-        const formData = new FormData();
-        formData.append("file", attachedFile);
-
-        const token = getToken();
-        const res = await fetch(`${API_BASE}/chat/attach`, {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => null);
-          throw new Error(errBody?.detail || "Failed to process attachment");
-        }
-
-        const data: { filename: string; content: string; truncated: boolean } = await res.json();
-
-        const attachmentBlock = `[Attached file: ${data.filename}]\n${data.content}${
-          data.truncated ? "\n[...content truncated]" : ""
-        }`;
-
-        outgoingMessage = trimmed
-          ? `${attachmentBlock}\n\n${trimmed}`
-          : `${attachmentBlock}\n\nWhat can you tell me about this file?`;
-      } catch (err) {
-        setAttachError(err instanceof Error ? err.message : "Failed to attach file");
-        setIsAttaching(false);
-        return;
-      }
-      setIsAttaching(false);
+    // No attachment: business as usual, single clean message.
+    if (!attachedFile) {
+      onSend(trimmed);
+      setMessage("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      return;
     }
 
-    onSend(outgoingMessage);
-    setMessage("");
-    setAttachedFile(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
+    // With attachment: extract text via /chat/attach, then send a CLEAN
+    // display message (what shows in the chat bubble) plus a separate
+    // hidden context string (what actually gets sent to the AI). These
+    // are never combined into one string here — that was the bug.
+    setIsAttaching(true);
+    setAttachError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", attachedFile);
+
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/chat/attach`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.detail || "Failed to process attachment");
+      }
+
+      const data: { filename: string; content: string; truncated: boolean } = await res.json();
+
+      const hiddenContext = `[Attached file: ${data.filename}]\n${data.content}${
+        data.truncated ? "\n[...content truncated]" : ""
+      }`;
+
+      // This is the only part the user sees in their own chat bubble.
+      const displayMessage = `📎 ${data.filename}\n${trimmed || "What can you tell me about this file?"}`;
+
+      onSend(displayMessage, hiddenContext);
+
+      setMessage("");
+      setAttachedFile(null);
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+    } catch (err) {
+      setAttachError(err instanceof Error ? err.message : "Failed to attach file");
+    } finally {
+      setIsAttaching(false);
     }
   };
 

@@ -64,16 +64,22 @@ export default function ChatPage() {
     setStreamingContent("");
   }
 
-  async function handleSend(message: string) {
+  async function handleSend(message: string, hiddenContext?: string) {
     if (!message.trim() || isStreaming) return;
     setMessages((prev) => [...prev, { role: "user", content: message }]);
     setIsStreaming(true);
     setStreamingContent("");
     let fullContent = "";
 
+    // The AI needs the full attached document content to answer well, but
+    // the chat bubble the user sees (`message`) stays clean — the hidden
+    // context is only stitched in for the actual backend call, never shown
+    // in the visible conversation.
+    const outgoingForAI = hiddenContext ? `${hiddenContext}\n\n${message}` : message;
+
     try {
       await streamMessage(
-        { message, conversation_id: conversationId ?? undefined, mode_prompt: currentMode?.systemPrompt },
+        { message: outgoingForAI, conversation_id: conversationId ?? undefined, mode_prompt: currentMode?.systemPrompt },
         (chunk) => { fullContent += chunk; setStreamingContent(fullContent); },
         (meta) => { if (meta.conversation_id) setConversationId(meta.conversation_id); setRefreshSidebar((n) => n + 1); },
         () => {
