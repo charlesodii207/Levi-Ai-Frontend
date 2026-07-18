@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { Send, Paperclip, Mic, X, Loader2, FileText } from "lucide-react";
 import { getToken } from "../lib/auth";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type PromptBoxProps = {
   onSend: (message: string) => void;
