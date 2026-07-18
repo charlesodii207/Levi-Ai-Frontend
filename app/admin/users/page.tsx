@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { listUsers, suspendUser, activateUser, deleteUser, getAdminMe } from "@/app/lib/adminApi";
 import { isOnline, OnlineDot } from "@/app/lib/onlineStatus";
-import { IconMoreVertical, IconBan, IconCheckCircle, IconTrash } from "@/app/components/Icons";
+import { IconMoreVertical, IconBan, IconCheckCircle, IconTrash, IconSearch } from "@/app/components/Icons";
 import { ConfirmModal, useConfirm } from "@/app/components/ConfirmModal";
 
 type User = {
@@ -31,6 +31,7 @@ export default function AdminUsersPage() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
   const [skip, setSkip] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
   const [, forceTick] = useState(0);
   const limit = 50;
 
@@ -141,6 +142,12 @@ export default function AdminUsersPage() {
     return new Date(dateStr).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
+  const filteredUsers = users.filter((u) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+  });
+
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
       {openMenuId !== null && (
@@ -162,9 +169,32 @@ export default function AdminUsersPage() {
 
       {loading ? (
         <p style={{ color: "#8B9CC4", fontSize: 14 }}>Loading users...</p>
-      ) : users.length === 0 ? (
-        <p style={{ color: "#8B9CC4", fontSize: 14 }}>No users found.</p>
       ) : (
+        <>
+          <div style={{ marginBottom: 16, position: "relative", maxWidth: 320 }}>
+            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", display: "flex" }}>
+              <IconSearch size={15} color="#5A6B8C" />
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by username or email..."
+              style={{
+                width: "100%", padding: "9px 12px 9px 36px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 10, color: "#F0F4FF", fontSize: 13,
+                outline: "none", fontFamily: "Inter, sans-serif", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {filteredUsers.length === 0 ? (
+            <div style={{ background: "#0D1420", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18, padding: "48px 20px", textAlign: "center" }}>
+              <p style={{ color: "#5A6B8C", fontSize: 14 }}>No users match your search.</p>
+            </div>
+          ) : (
         <div style={{ background: "#0D1420", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18 }}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
@@ -178,7 +208,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => {
+                {filteredUsers.map((user) => {
                   const online = isOnline(user.last_active_at);
                   const menuOpen = openMenuId === user.id;
                   return (
@@ -242,12 +272,16 @@ export default function AdminUsersPage() {
             </table>
           </div>
         </div>
-      )}
+          )}
 
-      <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-        <button onClick={() => setSkip(Math.max(0, skip - limit))} disabled={skip === 0 || loading} style={pageBtnStyle}>← Previous</button>
-        <button onClick={() => setSkip(skip + limit)} disabled={users.length < limit || loading} style={pageBtnStyle}>Next →</button>
-      </div>
+          {!searchQuery && (
+            <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+              <button onClick={() => setSkip(Math.max(0, skip - limit))} disabled={skip === 0 || loading} style={pageBtnStyle}>← Previous</button>
+              <button onClick={() => setSkip(skip + limit)} disabled={users.length < limit || loading} style={pageBtnStyle}>Next →</button>
+            </div>
+          )}
+        </>
+      )}
 
       <ConfirmModal {...confirm.props} />
     </div>

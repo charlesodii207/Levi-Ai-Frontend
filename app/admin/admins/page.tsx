@@ -11,7 +11,7 @@ import {
   TIER_LABELS, TIER_COLORS, PLATFORM_ROLE_LABELS, PLATFORM_ROLES,
   creatableTiersFor, assignableTiersFor,
 } from "@/app/lib/tiers";
-import { IconPlus, IconMoreVertical, IconBan, IconCheckCircle, IconTrash, IconArrowUpDown } from "@/app/components/Icons";
+import { IconPlus, IconMoreVertical, IconBan, IconCheckCircle, IconTrash, IconArrowUpDown, IconSearch } from "@/app/components/Icons";
 import { ConfirmModal, useConfirm } from "@/app/components/ConfirmModal";
 
 type AdminUser = {
@@ -34,6 +34,12 @@ function canManage(actorTier: string, targetTier: string): boolean {
   return false;
 }
 
+function canDeleteAdmin(actorTier: string, targetTier: string): boolean {
+  if (actorTier === "owner") return targetTier !== "owner";
+  if (actorTier === "super_admin") return targetTier === "admin" || targetTier === "moderator";
+  return false; // admin, moderator can never delete an admin account
+}
+
 export default function AdminAdminsPage() {
   const router = useRouter();
   const confirm = useConfirm();
@@ -48,6 +54,8 @@ export default function AdminAdminsPage() {
   const [tierPanelId, setTierPanelId] = useState<number | null>(null);
   const [pendingTier, setPendingTier] = useState<Record<number, string>>({});
   const [pendingDept, setPendingDept] = useState<Record<number, string>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [, forceTick] = useState(0);
 
   const [showForm, setShowForm] = useState(false);
@@ -222,6 +230,28 @@ export default function AdminAdminsPage() {
 
   const createOptions = currentAdmin ? creatableTiersFor(currentAdmin.tier) : [];
 
+  const filterTabs: { key: string; label: string }[] = currentAdmin
+    ? currentAdmin.tier === "owner" || currentAdmin.tier === "super_admin"
+      ? [
+          { key: "all", label: "All" },
+          { key: "owner", label: "System Owner" },
+          { key: "super_admin", label: "Super Admin" },
+          { key: "admin", label: "Administrator" },
+          { key: "moderator", label: "Moderator" },
+        ]
+      : [
+          { key: "all", label: "All" },
+          { key: "admin", label: "Administrator" },
+          { key: "moderator", label: "Moderator" },
+        ]
+    : [];
+
+  const filteredAdmins = admins.filter((a) => {
+    const matchesTier = activeFilter === "all" || a.tier === activeFilter;
+    const matchesSearch = a.username.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    return matchesTier && matchesSearch;
+  });
+
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
       {/* Backdrop to close any open row menu on outside click */}
@@ -315,6 +345,56 @@ export default function AdminAdminsPage() {
       {loading ? (
         <p style={{ color: "#8B9CC4", fontSize: 14 }}>Loading admins...</p>
       ) : (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {filterTabs.map((tab) => {
+                const active = activeFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveFilter(tab.key)}
+                    style={{
+                      padding: "7px 14px", borderRadius: 999,
+                      background: active ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${active ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.07)"}`,
+                      color: active ? "#3B82F6" : "#8B9CC4",
+                      fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                      fontFamily: "Inter, sans-serif", whiteSpace: "nowrap",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ position: "relative", minWidth: 220, flex: "0 1 260px" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", display: "flex" }}>
+                <IconSearch size={15} color="#5A6B8C" />
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by username..."
+                style={{
+                  width: "100%", padding: "9px 12px 9px 36px",
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 10, color: "#F0F4FF", fontSize: 13,
+                  outline: "none", fontFamily: "Inter, sans-serif", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+
+          {filteredAdmins.length === 0 ? (
+            <div style={{ background: "#0D1420", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18, padding: "48px 20px", textAlign: "center" }}>
+              <p style={{ color: "#5A6B8C", fontSize: 14 }}>No admins match your search.</p>
+            </div>
+          ) : (
         <div style={{ background: "#0D1420", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18, overflow: "visible" }}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
@@ -328,10 +408,11 @@ export default function AdminAdminsPage() {
                 </tr>
               </thead>
               <tbody>
-                {admins.map((admin) => {
+                {filteredAdmins.map((admin) => {
                   const isSelf = admin.id === currentAdmin?.id;
                   const online = isOnline(admin.last_active_at);
                   const manageable = !isSelf && currentAdmin && canManage(currentAdmin.tier, admin.tier);
+                  const deletable = !isSelf && currentAdmin && canDeleteAdmin(currentAdmin.tier, admin.tier);
                   const tierOptions = currentAdmin ? assignableTiersFor(currentAdmin.tier, admin.tier) : [];
                   const isMasked = admin.status === null;
                   const menuOpen = openMenuId === admin.id;
@@ -417,7 +498,9 @@ export default function AdminAdminsPage() {
                                     {tierOptions.length > 0 && (
                                       <MenuItem icon={<IconArrowUpDown size={15} />} label="Change tier" color="#3B82F6" onClick={() => setTierPanelId(admin.id)} />
                                     )}
-                                    <MenuItem icon={<IconTrash size={15} />} label="Delete admin" color="#EF4444" onClick={() => doDelete(admin)} />
+                                    {deletable && (
+                                      <MenuItem icon={<IconTrash size={15} />} label="Delete admin" color="#EF4444" onClick={() => doDelete(admin)} />
+                                    )}
                                   </>
                                 ) : (
                                   <div style={{ padding: 8 }}>
@@ -465,6 +548,8 @@ export default function AdminAdminsPage() {
             </table>
           </div>
         </div>
+          )}
+        </>
       )}
 
       <ConfirmModal {...confirm.props} />
