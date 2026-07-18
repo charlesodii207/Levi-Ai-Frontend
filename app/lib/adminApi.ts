@@ -157,3 +157,19 @@ export function deleteUser(userId: number) {
 export function getOverviewStats() {
   return adminRequest("/admin/stats/overview");
 }
+
+// ---------------------------------------------------------------------------
+// Suspension appeals
+// ---------------------------------------------------------------------------
+
+export function listAppeals(status?: string) {
+  return adminRequest(`/admin/appeals${status ? `?status=${status}` : ""}`);
+}
+
+export function approveAppeal(appealId: number) {
+  return adminRequest(`/admin/appeals/${appealId}/approve`, { method: "POST" });
+}
+
+export function rejectAppeal(appealId: number) {
+  return adminRequest(`/admin/appeals/${appealId}/reject`, { method: "POST" });
+}
