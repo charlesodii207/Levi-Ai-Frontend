@@ -29,6 +29,7 @@ export default function AdminUsersPage() {
   const [actioningId, setActioningId] = useState<number | null>(null);
   const [canDelete, setCanDelete] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
   const [skip, setSkip] = useState(0);
   const [, forceTick] = useState(0);
   const limit = 50;
@@ -121,6 +122,20 @@ export default function AdminUsersPage() {
     });
   }
 
+  function openUserMenu(e: React.MouseEvent<HTMLButtonElement>, userId: number) {
+    if (openMenuId === userId) { setOpenMenuId(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuHeight = 120;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < menuHeight;
+    setMenuPos({
+      top: openUp ? rect.top - 6 : rect.bottom + 6,
+      left: Math.max(12, rect.right - 200),
+      openUp,
+    });
+    setOpenMenuId(userId);
+  }
+
   function formatDate(dateStr: string | null) {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -185,9 +200,9 @@ export default function AdminUsersPage() {
                       <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{formatDate(user.last_login_at)}</td>
                       <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap", fontFamily: "monospace" }}>{user.last_login_ip || "—"}</td>
                       <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{formatDate(user.created_at)}</td>
-                      <td style={{ padding: "15px 16px", position: "relative", textAlign: "right" }}>
+                      <td style={{ padding: "15px 16px", textAlign: "right" }}>
                         <button
-                          onClick={() => setOpenMenuId(menuOpen ? null : user.id)}
+                          onClick={(e) => openUserMenu(e, user.id)}
                           disabled={actioningId === user.id}
                           style={{
                             background: menuOpen ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
@@ -200,10 +215,13 @@ export default function AdminUsersPage() {
 
                         {menuOpen && (
                           <div style={{
-                            position: "absolute", top: "100%", right: 16, marginTop: 6,
+                            position: "fixed",
+                            top: menuPos.openUp ? undefined : menuPos.top,
+                            bottom: menuPos.openUp ? window.innerHeight - menuPos.top : undefined,
+                            left: menuPos.left,
                             width: 200, background: "#141C2C",
                             border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12,
-                            boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 100,
+                            boxShadow: "0 12px 32px rgba(0,0,0,0.45)", zIndex: 100,
                             padding: 6, textAlign: "left",
                           }}>
                             {user.is_active ? (

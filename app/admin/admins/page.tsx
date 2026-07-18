@@ -44,6 +44,7 @@ export default function AdminAdminsPage() {
   const [error, setError] = useState("");
   const [actioningId, setActioningId] = useState<number | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
   const [tierPanelId, setTierPanelId] = useState<number | null>(null);
   const [pendingTier, setPendingTier] = useState<Record<number, string>>({});
   const [pendingDept, setPendingDept] = useState<Record<number, string>>({});
@@ -197,6 +198,21 @@ export default function AdminAdminsPage() {
         }
       },
     });
+  }
+
+  function openAdminMenu(e: React.MouseEvent<HTMLButtonElement>, adminId: number) {
+    if (openMenuId === adminId) { setOpenMenuId(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuHeight = 180; // rough estimate, enough for the default 3-item menu
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < menuHeight;
+    setMenuPos({
+      top: openUp ? rect.top - 6 : rect.bottom + 6,
+      left: Math.max(12, rect.right - 220),
+      openUp,
+    });
+    setTierPanelId(null);
+    setOpenMenuId(adminId);
   }
 
   function formatDate(dateStr: string | null) {
@@ -363,13 +379,13 @@ export default function AdminAdminsPage() {
                         {isMasked ? "Hidden" : (admin.last_login_ip || "—")}
                       </td>
                       <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{formatDate(admin.created_at)}</td>
-                      <td style={{ padding: "15px 16px", position: "relative", textAlign: "right" }}>
+                      <td style={{ padding: "15px 16px", textAlign: "right" }}>
                         {!manageable ? (
                           <span style={{ color: "#3D4F72", fontSize: 12 }}>—</span>
                         ) : (
                           <>
                             <button
-                              onClick={() => { setOpenMenuId(menuOpen ? null : admin.id); setTierPanelId(null); }}
+                              onClick={(e) => openAdminMenu(e, admin.id)}
                               disabled={actioningId === admin.id}
                               style={{
                                 background: menuOpen ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
@@ -382,10 +398,13 @@ export default function AdminAdminsPage() {
 
                             {menuOpen && (
                               <div style={{
-                                position: "absolute", top: "100%", right: 16, marginTop: 6,
+                                position: "fixed",
+                                top: menuPos.openUp ? undefined : menuPos.top,
+                                bottom: menuPos.openUp ? window.innerHeight - menuPos.top : undefined,
+                                left: menuPos.left,
                                 width: 220, background: "#141C2C",
                                 border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12,
-                                boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 100,
+                                boxShadow: "0 12px 32px rgba(0,0,0,0.45)", zIndex: 100,
                                 padding: 6, textAlign: "left",
                               }}>
                                 {tierPanelId !== admin.id ? (
