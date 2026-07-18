@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { listUsers, suspendUser, activateUser, deleteUser, getAdminMe } from "@/app/lib/adminApi";
 import { isOnline, OnlineDot } from "@/app/lib/onlineStatus";
+import { IconMoreVertical, IconBan, IconCheckCircle, IconTrash } from "@/app/components/Icons";
+import { ConfirmModal, useConfirm } from "@/app/components/ConfirmModal";
 
 type User = {
   id: number;
@@ -19,27 +21,27 @@ type User = {
 const CAN_DELETE_TIERS = ["owner", "super_admin"];
 
 export default function AdminUsersPage() {
+  const confirm = useConfirm();
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actioningId, setActioningId] = useState<number | null>(null);
   const [canDelete, setCanDelete] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [skip, setSkip] = useState(0);
   const [, forceTick] = useState(0);
   const limit = 50;
 
   useEffect(() => {
-    getAdminMe()
-      .then((me) => setCanDelete(CAN_DELETE_TIERS.includes(me.tier)))
-      .catch(() => {});
+    getAdminMe().then((me) => setCanDelete(CAN_DELETE_TIERS.includes(me.tier))).catch(() => {});
   }, []);
 
   async function loadUsers() {
     setLoading(true);
     setError("");
     try {
-      const data = await listUsers(skip, limit);
-      setUsers(data);
+      setUsers(await listUsers(skip, limit));
     } catch (err: any) {
       setError(err.message || "Failed to load users.");
     } finally {
@@ -57,68 +59,88 @@ export default function AdminUsersPage() {
     return () => clearInterval(interval);
   }, []);
 
-  async function handleSuspend(user: User) {
-    setActioningId(user.id);
-    try {
-      await suspendUser(user.id);
-      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, is_active: false } : u));
-    } catch (err: any) {
-      setError(err.message || "Failed to suspend user.");
-    } finally {
-      setActioningId(null);
-    }
+  function doSuspend(user: User) {
+    setOpenMenuId(null);
+    confirm.ask({
+      title: "Suspend this user?",
+      message: `"${user.username}" will immediately lose access to Levi, including any active session.`,
+      confirmLabel: "Suspend",
+      danger: true,
+      onConfirm: async () => {
+        setActioningId(user.id);
+        try {
+          await suspendUser(user.id);
+          setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, is_active: false } : u));
+        } catch (err: any) {
+          setError(err.message || "Failed to suspend user.");
+        } finally {
+          setActioningId(null);
+        }
+      },
+    });
   }
 
-  async function handleActivate(user: User) {
-    setActioningId(user.id);
-    try {
-      await activateUser(user.id);
-      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, is_active: true } : u));
-    } catch (err: any) {
-      setError(err.message || "Failed to activate user.");
-    } finally {
-      setActioningId(null);
-    }
+  function doActivate(user: User) {
+    setOpenMenuId(null);
+    confirm.ask({
+      title: "Reactivate this user?",
+      message: `"${user.username}" will regain full access to their account.`,
+      confirmLabel: "Reactivate",
+      onConfirm: async () => {
+        setActioningId(user.id);
+        try {
+          await activateUser(user.id);
+          setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, is_active: true } : u));
+        } catch (err: any) {
+          setError(err.message || "Failed to activate user.");
+        } finally {
+          setActioningId(null);
+        }
+      },
+    });
   }
 
-  async function handleDelete(user: User) {
-    const confirmed = window.confirm(
-      `Permanently delete "${user.username}"? This cannot be undone.`
-    );
-    if (!confirmed) return;
-
-    setActioningId(user.id);
-    try {
-      await deleteUser(user.id);
-      setUsers((prev) => prev.filter((u) => u.id !== user.id));
-    } catch (err: any) {
-      setError(err.message || "Failed to delete user.");
-    } finally {
-      setActioningId(null);
-    }
+  function doDelete(user: User) {
+    setOpenMenuId(null);
+    confirm.ask({
+      title: "Delete this user?",
+      message: `"${user.username}" and all of their data will be permanently deleted. This cannot be undone.`,
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: async () => {
+        setActioningId(user.id);
+        try {
+          await deleteUser(user.id);
+          setUsers((prev) => prev.filter((u) => u.id !== user.id));
+        } catch (err: any) {
+          setError(err.message || "Failed to delete user.");
+        } finally {
+          setActioningId(null);
+        }
+      },
+    });
   }
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return "—";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return new Date(dateStr).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <h1 style={{ color: "#F0F4FF", fontSize: "clamp(20px, 4vw, 26px)", fontWeight: 800, marginBottom: 4 }}>
+      {openMenuId !== null && (
+        <div onClick={() => setOpenMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
+      )}
+
+      <h1 style={{ color: "#F0F4FF", fontSize: "clamp(20px, 4vw, 27px)", fontWeight: 800, marginBottom: 5, letterSpacing: -0.3 }}>
         Users
       </h1>
-      <p style={{ color: "#3D4F72", fontSize: 14, marginBottom: 24 }}>
+      <p style={{ color: "#5A6B8C", fontSize: 14, marginBottom: 26 }}>
         View, suspend, or manage user accounts.
       </p>
 
       {error && (
-        <div style={{
-          padding: "12px 16px", background: "rgba(239,68,68,0.08)",
-          border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10,
-          color: "#EF4444", fontSize: 13, marginBottom: 20,
-        }}>
+        <div style={{ padding: "12px 16px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, color: "#EF4444", fontSize: 13, marginBottom: 20 }}>
           {error}
         </div>
       )}
@@ -128,143 +150,116 @@ export default function AdminUsersPage() {
       ) : users.length === 0 ? (
         <p style={{ color: "#8B9CC4", fontSize: 14 }}>No users found.</p>
       ) : (
-        <div style={{
-          background: "#0D1420",
-          border: "1px solid rgba(255,255,255,0.07)",
-          borderRadius: 16,
-          overflowX: "auto",
-        }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                {["", "Username", "Email", "Status", "Verified", "Last Login", "Last IP", "Joined", "Actions"].map((h, i) => (
-                  <th key={i} style={{
-                    textAlign: "left", padding: "14px 16px",
-                    color: "#8B9CC4", fontSize: 12, fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: 0.5,
-                    whiteSpace: "nowrap",
-                  }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => {
-                const online = isOnline(user.last_active_at);
-                return (
-                  <tr key={user.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <td style={{ padding: "14px 8px 14px 16px" }}>
-                      <OnlineDot online={online} />
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#F0F4FF", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-                      {user.username}
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                      {user.email}
-                    </td>
-                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                      <span style={{
-                        padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-                        background: user.is_active ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                        color: user.is_active ? "#22C55E" : "#EF4444",
-                        border: `1px solid ${user.is_active ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
-                      }}>
-                        {user.is_active ? "Active" : "Suspended"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                      {user.is_verified ? "✓" : "—"}
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                      {formatDate(user.last_login_at)}
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap", fontFamily: "monospace" }}>
-                      {user.last_login_ip || "—"}
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>
-                      {formatDate(user.created_at)}
-                    </td>
-                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {user.is_active ? (
-                          <button
-                            onClick={() => handleSuspend(user)}
-                            disabled={actioningId === user.id}
-                            style={actionBtnStyle("#EF4444")}
-                          >
-                            Suspend
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleActivate(user)}
-                            disabled={actioningId === user.id}
-                            style={actionBtnStyle("#22C55E")}
-                          >
-                            Activate
-                          </button>
+        <div style={{ background: "#0D1420", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18 }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  {["", "Username", "Email", "Status", "Verified", "Last Login", "Last IP", "Joined", ""].map((h, i) => (
+                    <th key={i} style={{ textAlign: "left", padding: "15px 16px", color: "#5A6B8C", fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, whiteSpace: "nowrap" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => {
+                  const online = isOnline(user.last_active_at);
+                  const menuOpen = openMenuId === user.id;
+                  return (
+                    <tr key={user.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                      <td style={{ padding: "15px 8px 15px 16px" }}><OnlineDot online={online} /></td>
+                      <td style={{ padding: "15px 16px", color: "#F0F4FF", fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap" }}>{user.username}</td>
+                      <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{user.email}</td>
+                      <td style={{ padding: "15px 16px", whiteSpace: "nowrap" }}>
+                        <span style={{
+                          padding: "3px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 700,
+                          background: user.is_active ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                          color: user.is_active ? "#22C55E" : "#EF4444",
+                          border: `1px solid ${user.is_active ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+                        }}>
+                          {user.is_active ? "Active" : "Suspended"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{user.is_verified ? "✓" : "—"}</td>
+                      <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{formatDate(user.last_login_at)}</td>
+                      <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap", fontFamily: "monospace" }}>{user.last_login_ip || "—"}</td>
+                      <td style={{ padding: "15px 16px", color: "#8B9CC4", fontSize: 13, whiteSpace: "nowrap" }}>{formatDate(user.created_at)}</td>
+                      <td style={{ padding: "15px 16px", position: "relative", textAlign: "right" }}>
+                        <button
+                          onClick={() => setOpenMenuId(menuOpen ? null : user.id)}
+                          disabled={actioningId === user.id}
+                          style={{
+                            background: menuOpen ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+                            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
+                            color: "#8B9CC4", cursor: "pointer", padding: "7px 8px", display: "inline-flex",
+                          }}
+                        >
+                          <IconMoreVertical size={16} />
+                        </button>
+
+                        {menuOpen && (
+                          <div style={{
+                            position: "absolute", top: "100%", right: 16, marginTop: 6,
+                            width: 200, background: "#141C2C",
+                            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12,
+                            boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 100,
+                            padding: 6, textAlign: "left",
+                          }}>
+                            {user.is_active ? (
+                              <MenuItem icon={<IconBan size={15} />} label="Suspend user" color="#EF4444" onClick={() => doSuspend(user)} />
+                            ) : (
+                              <MenuItem icon={<IconCheckCircle size={15} />} label="Reactivate user" color="#22C55E" onClick={() => doActivate(user)} />
+                            )}
+                            {canDelete && (
+                              <MenuItem icon={<IconTrash size={15} />} label="Delete user" color="#EF4444" onClick={() => doDelete(user)} />
+                            )}
+                          </div>
                         )}
-                        {canDelete && (
-                          <button
-                            onClick={() => handleDelete(user)}
-                            disabled={actioningId === user.id}
-                            style={actionBtnStyle("#8B9CC4")}
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <button
-          onClick={() => setSkip(Math.max(0, skip - limit))}
-          disabled={skip === 0 || loading}
-          style={pageBtnStyle}
-        >
-          ← Previous
-        </button>
-        <button
-          onClick={() => setSkip(skip + limit)}
-          disabled={users.length < limit || loading}
-          style={pageBtnStyle}
-        >
-          Next →
-        </button>
+      <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+        <button onClick={() => setSkip(Math.max(0, skip - limit))} disabled={skip === 0 || loading} style={pageBtnStyle}>← Previous</button>
+        <button onClick={() => setSkip(skip + limit)} disabled={users.length < limit || loading} style={pageBtnStyle}>Next →</button>
       </div>
+
+      <ConfirmModal {...confirm.props} />
     </div>
   );
 }
 
-function actionBtnStyle(color: string): React.CSSProperties {
-  return {
-    padding: "6px 12px",
-    background: `${color}14`,
-    border: `1px solid ${color}4D`,
-    borderRadius: 8,
-    color,
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-    fontFamily: "Inter, sans-serif",
-  };
+function MenuItem({ icon, label, color, onClick }: { icon: React.ReactNode; label: string; color: string; onClick: () => void }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%",
+        padding: "9px 10px", background: hover ? `${color}14` : "transparent",
+        border: "none", borderRadius: 8, color,
+        fontSize: 13, fontWeight: 600, cursor: "pointer",
+        fontFamily: "Inter, sans-serif", textAlign: "left",
+        transition: "background 0.1s ease",
+      }}
+    >
+      {icon} {label}
+    </button>
+  );
 }
 
 const pageBtnStyle: React.CSSProperties = {
-  padding: "10px 18px",
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 10,
-  color: "#8B9CC4",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
+  padding: "10px 18px", background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10,
+  color: "#8B9CC4", fontSize: 13, fontWeight: 600, cursor: "pointer",
   fontFamily: "Inter, sans-serif",
 };
