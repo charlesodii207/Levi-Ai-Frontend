@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getAdminToken, clearAdminToken, getAdminMe } from "@/app/lib/adminApi";
 import { TIER_LABELS, TIER_COLORS, PLATFORM_ROLE_LABELS } from "@/app/lib/tiers";
-import { IconDashboard, IconUsers, IconShield, IconLogs, IconLogOut, IconMenu, IconX, IconSettings } from "@/app/components/Icons";
+import { IconDashboard, IconUsers, IconShield, IconLogs, IconLogOut, IconMenu, IconX, IconSettings, IconMail } from "@/app/components/Icons";
 
 type AdminInfo = {
   id: number;
@@ -92,6 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "Dashboard", href: "/admin", Icon: IconDashboard, visible: true },
     { label: "Users", href: "/admin/users", Icon: IconUsers, visible: true },
     { label: "Admins", href: "/admin/admins", Icon: IconShield, visible: tier !== "moderator" },
+    { label: "Appeals", href: "/admin/appeals", Icon: IconMail, visible: tier !== "moderator" },
     { label: "Action Logs", href: "/admin/logs", Icon: IconLogs, visible: tier === "owner" || tier === "super_admin" },
     { label: "Settings", href: "/admin/settings", Icon: IconSettings, visible: true },
   ];
