@@ -72,6 +72,7 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
     try {
       const formData = new FormData();
       formData.append("file", attachedFile);
+      formData.append("model", selectedModel);
 
       const token = getToken();
       const res = await fetch(`${API_BASE}/chat/attach`, {
