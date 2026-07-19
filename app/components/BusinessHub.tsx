@@ -7,8 +7,9 @@ import remarkGfm from "remark-gfm";
 import {
   Briefcase, ArrowLeft, Loader2, Copy, Check,
   FileText, PresentationIcon, BarChart2, Sparkles,
-  ChevronDown, Send, RefreshCw,
+  ChevronDown, Send, RefreshCw, Zap,
 } from "lucide-react";
+import type { LeviModel } from "./PromptBox";
 
 type Tool = "landing" | "bizplan" | "pitchdeck" | "market" | "branding";
 
@@ -60,7 +61,7 @@ const TOOLS = [
   },
 ];
 
-async function callLevi(message: string): Promise<string> {
+async function callLevi(message: string, model: LeviModel = "swift"): Promise<string> {
   const token = localStorage.getItem("levi_token");
   const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
     method: "POST",
@@ -68,10 +69,51 @@ async function callLevi(message: string): Promise<string> {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, model }),
   });
   const data = await res.json();
   return data.response || "No response received.";
+}
+
+const MODEL_OPTIONS: { id: LeviModel; label: string }[] = [
+  { id: "swift", label: "Levi Swift" },
+  { id: "nova", label: "Levi Nova" },
+];
+
+function ModelSelector({ value, onChange }: { value: LeviModel; onChange: (m: LeviModel) => void }) {
+  return (
+    <div style={{
+      display: "flex",
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 10,
+      padding: 3,
+    }}>
+      {MODEL_OPTIONS.map((opt) => {
+        const active = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            onClick={() => onChange(opt.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 10px",
+              background: active ? "rgba(59,130,246,0.15)" : "transparent",
+              border: "none",
+              borderRadius: 7,
+              color: active ? "#3B82F6" : "#6B7280",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {opt.id === "nova" ? <Sparkles size={11} /> : <Zap size={11} />}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -174,7 +216,7 @@ function Dropdown({ value, onChange, options, placeholder }: { value: string; on
 }
 
 // ── Business Plan ─────────────────────────────────────────────────────────────
-function BizPlanTool({ onBack }: { onBack: () => void }) {
+function BizPlanTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [form, setForm] = useState({ name: "", industry: "", market: "", problem: "", solution: "", model: "" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -207,19 +249,22 @@ Include these sections:
 13. Conclusion
 
 Be specific, realistic, and professional. Use bullet points where appropriate.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-          <ArrowLeft size={13} /> Back
-        </button>
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Business Plan Generator</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Fill in the details — Levi writes the full plan</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            <ArrowLeft size={13} /> Back
+          </button>
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Business Plan Generator</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Fill in the details — Levi writes the full plan</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
@@ -298,7 +343,7 @@ Be specific, realistic, and professional. Use bullet points where appropriate.`;
 }
 
 // ── Pitch Deck ────────────────────────────────────────────────────────────────
-function PitchDeckTool({ onBack }: { onBack: () => void }) {
+function PitchDeckTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [idea, setIdea] = useState("");
   const [stage, setStage] = useState("");
   const [ask, setAsk] = useState("");
@@ -330,19 +375,22 @@ Create slides for:
 13. Contact/Thank You
 
 For each slide, provide: the slide title, 3-5 bullet points of content, and a tip for what visual or data to show. Make it investor-ready and compelling.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-          <ArrowLeft size={13} /> Back
-        </button>
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Pitch Deck Builder</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Investor-ready slide outline in seconds</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            <ArrowLeft size={13} /> Back
+          </button>
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Pitch Deck Builder</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Investor-ready slide outline in seconds</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
@@ -389,7 +437,7 @@ For each slide, provide: the slide title, 3-5 bullet points of content, and a ti
 }
 
 // ── Market Research ───────────────────────────────────────────────────────────
-function MarketTool({ onBack }: { onBack: () => void }) {
+function MarketTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [niche, setNiche] = useState("");
   const [industry, setIndustry] = useState("");
   const [country, setCountry] = useState("");
@@ -441,19 +489,22 @@ Provide a detailed report covering:
 - Top 3 strategic recommendations
 
 Be thorough, realistic, and actionable.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-          <ArrowLeft size={13} /> Back
-        </button>
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Market Research Tool</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Deep market analysis powered by Levi</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            <ArrowLeft size={13} /> Back
+          </button>
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Market Research Tool</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Deep market analysis powered by Levi</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
@@ -498,7 +549,7 @@ Be thorough, realistic, and actionable.`;
 }
 
 // ── Branding ──────────────────────────────────────────────────────────────────
-function BrandingTool({ onBack }: { onBack: () => void }) {
+function BrandingTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [idea, setIdea] = useState("");
   const [vibe, setVibe] = useState("");
   const [loading, setLoading] = useState(false);
@@ -535,21 +586,24 @@ Suggest 2-3 color palette options with hex codes and the emotion each conveys
 A brief profile of the ideal customer this brand should appeal to
 
 Be creative, original, and think like a world-class branding agency.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   const VIBES = ["Luxury & Premium", "Fun & Playful", "Professional & Corporate", "Bold & Disruptive", "Minimal & Clean", "Warm & Friendly", "Tech & Futuristic"];
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-          <ArrowLeft size={13} /> Back
-        </button>
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Name & Branding Generator</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Names, taglines, and brand identity</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 10px", color: "#8B9CC4", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            <ArrowLeft size={13} /> Back
+          </button>
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Name & Branding Generator</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Names, taglines, and brand identity</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
@@ -605,11 +659,12 @@ Be creative, original, and think like a world-class branding agency.`;
 // ── Main Hub ──────────────────────────────────────────────────────────────────
 export default function BusinessHub() {
   const [tool, setTool] = useState<Tool>("landing");
+  const [model, setModel] = useState<LeviModel>("swift");
 
-  if (tool === "bizplan") return <BizPlanTool onBack={() => setTool("landing")} />;
-  if (tool === "pitchdeck") return <PitchDeckTool onBack={() => setTool("landing")} />;
-  if (tool === "market") return <MarketTool onBack={() => setTool("landing")} />;
-  if (tool === "branding") return <BrandingTool onBack={() => setTool("landing")} />;
+  if (tool === "bizplan") return <BizPlanTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
+  if (tool === "pitchdeck") return <PitchDeckTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
+  if (tool === "market") return <MarketTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
+  if (tool === "branding") return <BrandingTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 28px", overflow: "auto" }}>

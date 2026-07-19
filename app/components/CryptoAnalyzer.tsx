@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, TrendingDown, Minus, Loader2, RefreshCw, Zap, Gauge } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, RefreshCw, Zap, Gauge, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { LeviModel } from "./PromptBox";
 
 const TIMEFRAMES = ["15m", "1h", "4h", "1d"];
 
@@ -27,6 +28,11 @@ const AUTO_REFRESH_OPTIONS = [
   { label: "5m", seconds: 300 },
 ];
 
+const MODEL_OPTIONS: { id: LeviModel; label: string }[] = [
+  { id: "swift", label: "Levi Swift" },
+  { id: "nova", label: "Levi Nova" },
+];
+
 type Bias = "BULLISH" | "BEARISH" | "NEUTRAL";
 
 type Analysis = {
@@ -38,6 +44,7 @@ type Analysis = {
   takeProfit: string;
   riskReward: string;
   summary: string;
+  novaInsight?: string; // only populated when analysis was run with Levi Nova
 };
 
 type Candle = { open: number; high: number; low: number; close: number; time: string };
@@ -145,6 +152,9 @@ export default function CryptoAnalyzer() {
   const [error, setError] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Model selection — Nova gets a deeper "Nova Insight" breakdown, see prompt below.
+  const [selectedModel, setSelectedModel] = useState<LeviModel>("nova");
+
   // Auto-refresh
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [autoRefreshSeconds, setAutoRefreshSeconds] = useState(60);
@@ -200,6 +210,16 @@ export default function CryptoAnalyzer() {
       const recentHigh = Math.max(...data.candles.slice(-10).map((c) => c.high));
       const recentLow = Math.min(...data.candles.slice(-10).map((c) => c.low));
 
+      const isNova = selectedModel === "nova";
+
+      // Nova gets an extra field in the requested JSON — a longer, more
+      // technical breakdown. This is what actually makes Nova's output
+      // feel deeper, not just a different model name on the same prompt.
+      const novaFieldInstruction = isNova
+        ? `,
+  "novaInsight": "an advanced 3-4 paragraph deep-dive covering: volume profile and what it suggests about conviction behind the move, momentum divergence (is price making new highs/lows without matching momentum?), key psychological price levels nearby (round numbers, prior swing points), and 1-2 macro or on-chain factors a serious trader would watch for this asset right now"`
+        : "";
+
       const prompt = `You are a professional crypto trading analyst. I will give you REAL live market data. Analyze it and respond ONLY in this exact JSON format, no extra text outside the JSON:
 
 {
@@ -210,7 +230,7 @@ export default function CryptoAnalyzer() {
   "stopLoss": "specific price level",
   "takeProfit": "specific price level",
   "riskReward": "e.g. 1:2.5",
-  "summary": "detailed 2-3 paragraph analysis covering: current market structure, key support/resistance levels, momentum, and your trade recommendation with reasoning"
+  "summary": "detailed 2-3 paragraph analysis covering: current market structure, key support/resistance levels, momentum, and your trade recommendation with reasoning"${novaFieldInstruction}
 }
 
 LIVE MARKET DATA for ${pair.toUpperCase()} (${timeframe} timeframe):
@@ -230,7 +250,7 @@ ${candleSummary}
 
 Based on this REAL data, provide precise entry, stop loss, and take profit levels. SL should be below recent support for longs or above recent resistance for shorts. TP should target the next key resistance/support level. Calculate risk/reward ratio accurately. Set "confidence" honestly — if signals conflict, use a lower number (e.g. 40-55); only use 80+ when multiple indicators clearly agree.`;
 
-      // Step 4: Send to Levi backend
+      // Step 4: Send to Levi backend, routed to the selected model
       const token = localStorage.getItem("levi_token");
       const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
         method: "POST",
@@ -238,7 +258,7 @@ Based on this REAL data, provide precise entry, stop loss, and take profit level
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ message: prompt, model: selectedModel }),
       });
 
       const responseData = await res.json();
@@ -257,6 +277,7 @@ Based on this REAL data, provide precise entry, stop loss, and take profit level
         takeProfit: parsed.takeProfit,
         riskReward: parsed.riskReward,
         summary: parsed.summary,
+        novaInsight: isNova ? parsed.novaInsight : undefined,
       });
       setLastUpdated(new Date());
 
@@ -294,7 +315,7 @@ Based on this REAL data, provide precise entry, stop loss, and take profit level
       <div style={{ width: "100%", maxWidth: 820, margin: "0 auto" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               width: 40, height: 40, borderRadius: "50%",
@@ -314,75 +335,110 @@ Based on this REAL data, provide precise entry, stop loss, and take profit level
             </div>
           </div>
 
-          {/* Auto-refresh toggle */}
-          <div style={{ position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {autoRefresh && (
-                <button
-                  onClick={() => setShowAutoRefreshMenu(!showAutoRefreshMenu)}
-                  onBlur={() => setTimeout(() => setShowAutoRefreshMenu(false), 150)}
-                  style={{
-                    padding: "6px 10px",
-                    background: "rgba(34,197,94,0.08)",
-                    border: "1px solid rgba(34,197,94,0.25)",
-                    borderRadius: 8, color: "#22c55e",
-                    fontSize: 11, fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  every {AUTO_REFRESH_OPTIONS.find((o) => o.seconds === autoRefreshSeconds)?.label}
-                </button>
-              )}
-              <button
-                onClick={() => setAutoRefresh(!autoRefresh)}
-                title={autoRefresh ? "Auto-refresh on" : "Auto-refresh off"}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 12px",
-                  background: autoRefresh ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${autoRefresh ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.08)"}`,
-                  borderRadius: 10,
-                  color: autoRefresh ? "#22c55e" : "#6B7280",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer",
-                }}
-              >
-                <span style={{
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: autoRefresh ? "#22c55e" : "#374151",
-                  boxShadow: autoRefresh ? "0 0 6px #22c55e" : "none",
-                }} />
-                Auto-refresh
-              </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Model selector */}
+            <div style={{
+              display: "flex",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 10,
+              padding: 3,
+            }}>
+              {MODEL_OPTIONS.map((opt) => {
+                const active = selectedModel === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setSelectedModel(opt.id)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      padding: "6px 10px",
+                      background: active ? "rgba(59,130,246,0.15)" : "transparent",
+                      border: "none",
+                      borderRadius: 7,
+                      color: active ? "#3B82F6" : "#6B7280",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {opt.id === "nova" && <Sparkles size={11} />}
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-            <AnimatePresence>
-              {showAutoRefreshMenu && autoRefresh && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
+
+            {/* Auto-refresh toggle */}
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {autoRefresh && (
+                  <button
+                    onClick={() => setShowAutoRefreshMenu(!showAutoRefreshMenu)}
+                    onBlur={() => setTimeout(() => setShowAutoRefreshMenu(false), 150)}
+                    style={{
+                      padding: "6px 10px",
+                      background: "rgba(34,197,94,0.08)",
+                      border: "1px solid rgba(34,197,94,0.25)",
+                      borderRadius: 8, color: "#22c55e",
+                      fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    every {AUTO_REFRESH_OPTIONS.find((o) => o.seconds === autoRefreshSeconds)?.label}
+                  </button>
+                )}
+                <button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  title={autoRefresh ? "Auto-refresh on" : "Auto-refresh off"}
                   style={{
-                    position: "absolute", top: "100%", right: 0,
-                    background: "#0D1117", border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 10, marginTop: 6, zIndex: 10, minWidth: 100,
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "7px 12px",
+                    background: autoRefresh ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${autoRefresh ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.08)"}`,
+                    borderRadius: 10,
+                    color: autoRefresh ? "#22c55e" : "#6B7280",
+                    fontSize: 12, fontWeight: 600, cursor: "pointer",
                   }}
                 >
-                  {AUTO_REFRESH_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.seconds}
-                      onClick={() => { setAutoRefreshSeconds(opt.seconds); setShowAutoRefreshMenu(false); }}
-                      style={{
-                        width: "100%", padding: "8px 12px",
-                        background: autoRefreshSeconds === opt.seconds ? "rgba(34,197,94,0.1)" : "transparent",
-                        border: "none", borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        color: autoRefreshSeconds === opt.seconds ? "#22c55e" : "#9CA3AF",
-                        fontSize: 12, textAlign: "left", cursor: "pointer",
-                      }}
-                    >
-                      Every {opt.label}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: autoRefresh ? "#22c55e" : "#374151",
+                    boxShadow: autoRefresh ? "0 0 6px #22c55e" : "none",
+                  }} />
+                  Auto-refresh
+                </button>
+              </div>
+              <AnimatePresence>
+                {showAutoRefreshMenu && autoRefresh && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: "absolute", top: "100%", right: 0,
+                      background: "#0D1117", border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 10, marginTop: 6, zIndex: 10, minWidth: 100,
+                    }}
+                  >
+                    {AUTO_REFRESH_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.seconds}
+                        onClick={() => { setAutoRefreshSeconds(opt.seconds); setShowAutoRefreshMenu(false); }}
+                        style={{
+                          width: "100%", padding: "8px 12px",
+                          background: autoRefreshSeconds === opt.seconds ? "rgba(34,197,94,0.1)" : "transparent",
+                          border: "none", borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          color: autoRefreshSeconds === opt.seconds ? "#22c55e" : "#9CA3AF",
+                          fontSize: 12, textAlign: "left", cursor: "pointer",
+                        }}
+                      >
+                        Every {opt.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -760,6 +816,29 @@ Based on this REAL data, provide precise entry, stop loss, and take profit level
                   </ReactMarkdown>
                 </div>
               </div>
+
+              {/* Nova Insight — only rendered when analysis was run with Levi Nova */}
+              {analysis.novaInsight && (
+                <div style={{
+                  background: "linear-gradient(135deg, rgba(59,130,246,0.06), rgba(212,175,55,0.04))",
+                  border: "1px solid rgba(59,130,246,0.25)",
+                  borderRadius: 16,
+                  padding: "20px 24px",
+                  marginBottom: 12,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <Sparkles size={14} color="#3B82F6" />
+                    <p style={{ color: "#3B82F6", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, margin: 0 }}>
+                      NOVA INSIGHT — DEEPER ANALYSIS
+                    </p>
+                  </div>
+                  <div className="markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {analysis.novaInsight}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
 
               <p style={{ color: "#374151", fontSize: 11, textAlign: "center" }}>
                 ⚠ AI analysis using live Binance data. Not financial advice. Always manage your risk.

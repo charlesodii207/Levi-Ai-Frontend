@@ -7,12 +7,13 @@ import remarkGfm from "remark-gfm";
 import {
   PenLine, ArrowLeft, Loader2, Copy, Check,
   RefreshCw, Download, FileText, Share2,
-  Mail, Feather, Hash, ChevronDown,
+  Mail, Feather, Hash, ChevronDown, Zap, Sparkles,
 } from "lucide-react";
+import type { LeviModel } from "./PromptBox";
 
 type Tool = "landing" | "article" | "social" | "email" | "creative";
 
-async function callLevi(message: string): Promise<string> {
+async function callLevi(message: string, model: LeviModel = "swift"): Promise<string> {
   const token = localStorage.getItem("levi_token");
   const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
     method: "POST",
@@ -20,10 +21,51 @@ async function callLevi(message: string): Promise<string> {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, model }),
   });
   const data = await res.json();
   return data.response || "";
+}
+
+const MODEL_OPTIONS: { id: LeviModel; label: string }[] = [
+  { id: "swift", label: "Levi Swift" },
+  { id: "nova", label: "Levi Nova" },
+];
+
+function ModelSelector({ value, onChange }: { value: LeviModel; onChange: (m: LeviModel) => void }) {
+  return (
+    <div style={{
+      display: "flex",
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 10,
+      padding: 3,
+    }}>
+      {MODEL_OPTIONS.map((opt) => {
+        const active = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            onClick={() => onChange(opt.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 10px",
+              background: active ? "rgba(59,130,246,0.15)" : "transparent",
+              border: "none",
+              borderRadius: 7,
+              color: active ? "#3B82F6" : "#6B7280",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {opt.id === "nova" ? <Sparkles size={11} /> : <Zap size={11} />}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 const TOOLS = [
@@ -278,7 +320,7 @@ function Dropdown({ value, onChange, options, placeholder }: { value: string; on
 }
 
 // ── Article Tool ──────────────────────────────────────────────────────────────
-function ArticleTool({ onBack }: { onBack: () => void }) {
+function ArticleTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [topic, setTopic] = useState("");
   const [audience, setAudience] = useState("");
   const [tone, setTone] = useState("professional");
@@ -303,17 +345,20 @@ Structure the article with:
 - Use markdown formatting
 
 Make it feel human, original, and genuinely valuable. Not generic.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <BackButton onClick={onBack} />
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Article & Blog Writer</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Full ready-to-publish content in seconds</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <BackButton onClick={onBack} />
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Article & Blog Writer</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Full ready-to-publish content in seconds</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
         {!result && !loading && (
@@ -353,7 +398,7 @@ Make it feel human, original, and genuinely valuable. Not generic.`;
 }
 
 // ── Social Media Tool ─────────────────────────────────────────────────────────
-function SocialTool({ onBack }: { onBack: () => void }) {
+function SocialTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [platform, setPlatform] = useState(PLATFORMS[0]);
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState("casual");
@@ -375,17 +420,20 @@ Provide:
 4. An emoji suggestion to boost engagement
 
 Make it feel authentic, not corporate. Optimize for maximum engagement on ${platform.label}. Keep within the character limit.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <BackButton onClick={onBack} />
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Social Media Suite</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Platform-optimized content that actually performs</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <BackButton onClick={onBack} />
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Social Media Suite</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Platform-optimized content that actually performs</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
         {!result && !loading && (
@@ -436,7 +484,7 @@ Make it feel authentic, not corporate. Optimize for maximum engagement on ${plat
 }
 
 // ── Email Tool ────────────────────────────────────────────────────────────────
-function EmailTool({ onBack }: { onBack: () => void }) {
+function EmailTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [emailType, setEmailType] = useState("");
   const [context, setContext] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -461,17 +509,20 @@ List 3 compelling subject lines
 Write the complete email body — greeting, opening hook, main message, value proposition, clear call to action, and professional sign-off.
 
 Make it feel personal and human, not like a template. It should be persuasive without being pushy. Optimize for high open rates and responses.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <BackButton onClick={onBack} />
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Email Composer</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Emails that get opened, read and replied to</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <BackButton onClick={onBack} />
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Email Composer</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Emails that get opened, read and replied to</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
         {!result && !loading && (
@@ -523,7 +574,7 @@ Make it feel personal and human, not like a template. It should be persuasive wi
 }
 
 // ── Creative Tool ─────────────────────────────────────────────────────────────
-function CreativeTool({ onBack }: { onBack: () => void }) {
+function CreativeTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const [creativeType, setCreativeType] = useState("");
   const [theme, setTheme] = useState("");
   const [characters, setCharacters] = useState("");
@@ -550,17 +601,20 @@ Guidelines:
 - For rap/song lyrics: use rhyme schemes and flow
 
 Make it exceptional. This should feel like it was written by a talented human writer, not an AI.`;
-    try { setResult(await callLevi(prompt)); } catch {} finally { setLoading(false); }
+    try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 10 }}>
-        <BackButton onClick={onBack} />
-        <div>
-          <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Creative Writer</h2>
-          <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Stories, scripts, poems and lyrics crafted with soul</p>
+      <div style={{ flexShrink: 0, padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <BackButton onClick={onBack} />
+          <div>
+            <h2 style={{ color: "#F0F4FF", fontSize: 16, fontWeight: 700, margin: 0 }}>Creative Writer</h2>
+            <p style={{ color: "#3D4F72", fontSize: 12, margin: 0 }}>Stories, scripts, poems and lyrics crafted with soul</p>
+          </div>
         </div>
+        <ModelSelector value={model} onChange={onModelChange} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
         {!result && !loading && (
@@ -617,11 +671,12 @@ Make it exceptional. This should feel like it was written by a talented human wr
 // ── Main Hub ──────────────────────────────────────────────────────────────────
 export default function WritingStudio() {
   const [tool, setTool] = useState<Tool>("landing");
+  const [model, setModel] = useState<LeviModel>("swift");
 
-  if (tool === "article") return <ArticleTool onBack={() => setTool("landing")} />;
-  if (tool === "social") return <SocialTool onBack={() => setTool("landing")} />;
-  if (tool === "email") return <EmailTool onBack={() => setTool("landing")} />;
-  if (tool === "creative") return <CreativeTool onBack={() => setTool("landing")} />;
+  if (tool === "article") return <ArticleTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
+  if (tool === "social") return <SocialTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
+  if (tool === "email") return <EmailTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
+  if (tool === "creative") return <CreativeTool onBack={() => setTool("landing")} model={model} onModelChange={setModel} />;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 28px", overflow: "auto" }}>

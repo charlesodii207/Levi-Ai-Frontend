@@ -6,8 +6,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Search, Microscope, GitCompare, ShieldCheck, ArrowLeft,
-  Copy, Check, Download, Loader2, Sparkles,
+  Copy, Check, Download, Loader2, Sparkles, Zap,
 } from "lucide-react";
+import type { LeviModel } from "./PromptBox";
 
 type View = "landing" | "deepdive" | "compare" | "factcheck";
 
@@ -49,7 +50,7 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-async function callLevi(prompt: string): Promise<string> {
+async function callLevi(prompt: string, model: LeviModel = "swift"): Promise<string> {
   const token = localStorage.getItem("levi_token");
   const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
     method: "POST",
@@ -57,10 +58,52 @@ async function callLevi(prompt: string): Promise<string> {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message: prompt }),
+    body: JSON.stringify({ message: prompt, model }),
   });
   const data = await res.json();
   return data.response || "No response received.";
+}
+
+const MODEL_OPTIONS: { id: LeviModel; label: string }[] = [
+  { id: "swift", label: "Levi Swift" },
+  { id: "nova", label: "Levi Nova" },
+];
+
+function ModelSelector({ value, onChange }: { value: LeviModel; onChange: (m: LeviModel) => void }) {
+  return (
+    <div style={{
+      display: "flex",
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 10,
+      padding: 3,
+      flexShrink: 0,
+    }}>
+      {MODEL_OPTIONS.map((opt) => {
+        const active = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            onClick={() => onChange(opt.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 10px",
+              background: active ? "rgba(59,130,246,0.15)" : "transparent",
+              border: "none",
+              borderRadius: 7,
+              color: active ? "#3B82F6" : "#6B7280",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {opt.id === "nova" ? <Sparkles size={11} /> : <Zap size={11} />}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function downloadText(filename: string, content: string) {
@@ -197,39 +240,42 @@ function OutputPanel({
   );
 }
 
-function ToolHeader({ tool, onBack }: { tool: ToolDef; onBack: () => void }) {
+function ToolHeader({ tool, onBack, model, onModelChange }: { tool: ToolDef; onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-      <button
-        onClick={onBack}
-        style={{
-          width: 34, height: 34, borderRadius: 9,
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          color: "#9CA3AF", cursor: "pointer",
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <button
+          onClick={onBack}
+          style={{
+            width: 34, height: 34, borderRadius: 9,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: "#9CA3AF", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <div style={{
+          width: 38, height: 38, borderRadius: 10,
+          background: `${tool.color}18`,
+          border: `1px solid ${tool.color}45`,
           display: "flex", alignItems: "center", justifyContent: "center",
           flexShrink: 0,
-        }}
-      >
-        <ArrowLeft size={16} />
-      </button>
-      <div style={{
-        width: 38, height: 38, borderRadius: 10,
-        background: `${tool.color}18`,
-        border: `1px solid ${tool.color}45`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}>
-        {tool.icon}
+        }}>
+          {tool.icon}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ color: "white", fontSize: 18, fontWeight: 700, margin: 0 }}>
+            {tool.label}
+          </h1>
+          <p style={{ color: "#6B7280", fontSize: 12.5, margin: 0 }}>
+            {tool.description}
+          </p>
+        </div>
       </div>
-      <div>
-        <h1 style={{ color: "white", fontSize: 18, fontWeight: 700, margin: 0 }}>
-          {tool.label}
-        </h1>
-        <p style={{ color: "#6B7280", fontSize: 12.5, margin: 0 }}>
-          {tool.description}
-        </p>
-      </div>
+      <ModelSelector value={model} onChange={onModelChange} />
     </div>
   );
 }
@@ -264,7 +310,7 @@ function SubmitButton({
 // Tool 1: Topic Deep Dive
 // ---------------------------------------------------------------------------
 
-function DeepDiveTool({ onBack }: { onBack: () => void }) {
+function DeepDiveTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const tool = TOOLS[0];
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
@@ -302,7 +348,7 @@ Where this is heading, trends, or what to watch for.
 Be accurate and clear. If something is uncertain or disputed, say so rather than presenting it as settled fact.`;
 
     try {
-      const response = await callLevi(prompt);
+      const response = await callLevi(prompt, model);
       setResult(response);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -314,7 +360,7 @@ Be accurate and clear. If something is uncertain or disputed, say so rather than
   return (
     <div style={{ height: "100%", overflowY: "auto", padding: "28px 24px" }}>
       <div style={{ width: "100%", maxWidth: 820, margin: "0 auto" }}>
-        <ToolHeader tool={tool} onBack={onBack} />
+        <ToolHeader tool={tool} onBack={onBack} model={model} onModelChange={onModelChange} />
 
         <div style={{
           background: "#0D1117",
@@ -379,7 +425,7 @@ Be accurate and clear. If something is uncertain or disputed, say so rather than
 // Tool 2: Comparison Analyst
 // ---------------------------------------------------------------------------
 
-function CompareTool({ onBack }: { onBack: () => void }) {
+function CompareTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const tool = TOOLS[1];
   const [itemA, setItemA] = useState("");
   const [itemB, setItemB] = useState("");
@@ -402,7 +448,7 @@ Respond in markdown with:
 3. A "## Verdict" section with a clear, practical recommendation on which is better for which situation — avoid being wishy-washy, but note if it genuinely depends on the user's specific needs.`;
 
     try {
-      const response = await callLevi(prompt);
+      const response = await callLevi(prompt, model);
       setResult(response);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -414,7 +460,7 @@ Respond in markdown with:
   return (
     <div style={{ height: "100%", overflowY: "auto", padding: "28px 24px" }}>
       <div style={{ width: "100%", maxWidth: 820, margin: "0 auto" }}>
-        <ToolHeader tool={tool} onBack={onBack} />
+        <ToolHeader tool={tool} onBack={onBack} model={model} onModelChange={onModelChange} />
 
         <div style={{
           background: "#0D1117",
@@ -492,7 +538,7 @@ Respond in markdown with:
 // Tool 3: Fact Checker & Summarizer
 // ---------------------------------------------------------------------------
 
-function FactCheckTool({ onBack }: { onBack: () => void }) {
+function FactCheckTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
   const tool = TOOLS[2];
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -522,7 +568,7 @@ ${text}
 """`;
 
     try {
-      const response = await callLevi(prompt);
+      const response = await callLevi(prompt, model);
       setResult(response);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -534,7 +580,7 @@ ${text}
   return (
     <div style={{ height: "100%", overflowY: "auto", padding: "28px 24px" }}>
       <div style={{ width: "100%", maxWidth: 820, margin: "0 auto" }}>
-        <ToolHeader tool={tool} onBack={onBack} />
+        <ToolHeader tool={tool} onBack={onBack} model={model} onModelChange={onModelChange} />
 
         <div style={{
           background: "#0D1117",
@@ -606,10 +652,11 @@ ${text}
 
 export default function ResearchHub() {
   const [view, setView] = useState<View>("landing");
+  const [model, setModel] = useState<LeviModel>("swift");
 
-  if (view === "deepdive") return <DeepDiveTool onBack={() => setView("landing")} />;
-  if (view === "compare") return <CompareTool onBack={() => setView("landing")} />;
-  if (view === "factcheck") return <FactCheckTool onBack={() => setView("landing")} />;
+  if (view === "deepdive") return <DeepDiveTool onBack={() => setView("landing")} model={model} onModelChange={setModel} />;
+  if (view === "compare") return <CompareTool onBack={() => setView("landing")} model={model} onModelChange={setModel} />;
+  if (view === "factcheck") return <FactCheckTool onBack={() => setView("landing")} model={model} onModelChange={setModel} />;
 
   return (
     <div style={{

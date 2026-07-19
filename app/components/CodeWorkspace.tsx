@@ -9,6 +9,7 @@ import {
   Copy, Check, Loader2, ChevronDown, FileCode, Play,
   FolderInput, Wand2, ArrowLeft, Sparkles,
 } from "lucide-react";
+import type { LeviModel } from "./PromptBox";
 
 const LANGUAGES = [
   "Python", "JavaScript", "TypeScript", "React", "Node.js",
@@ -24,6 +25,48 @@ const ACTIONS = [
   { id: "test", label: "Write Tests", icon: <TestTube size={14} />, color: "#22C55E", description: "Generate unit tests" },
   { id: "comment", label: "Add Comments", icon: <Code2 size={14} />, color: "#F97316", description: "Document the code" },
 ];
+
+const MODEL_OPTIONS: { id: LeviModel; label: string }[] = [
+  { id: "swift", label: "Levi Swift" },
+  { id: "nova", label: "Levi Nova" },
+];
+
+function ModelSelector({ value, onChange }: { value: LeviModel; onChange: (m: LeviModel) => void }) {
+  return (
+    <div style={{
+      display: "flex",
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 10,
+      padding: 3,
+      flexShrink: 0,
+    }}>
+      {MODEL_OPTIONS.map((opt) => {
+        const active = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            onClick={() => onChange(opt.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 10px",
+              background: active ? "rgba(59,130,246,0.15)" : "transparent",
+              border: "none",
+              borderRadius: 7,
+              color: active ? "#3B82F6" : "#6B7280",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {opt.id === "nova" ? <Sparkles size={11} /> : <Zap size={11} />}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Language auto-detection
@@ -231,6 +274,9 @@ type View = "landing" | "have-code" | "build";
 export default function CodeWorkspace() {
   const [view, setView] = useState<View>("landing");
 
+  // Model selection — shared across both "have code" and "build" views
+  const [model, setModel] = useState<LeviModel>("swift");
+
   // Shared "have code" workspace state
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("Python");
@@ -293,7 +339,7 @@ export default function CodeWorkspace() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: prompts[actionId] }),
+        body: JSON.stringify({ message: prompts[actionId], model }),
       });
       const data = await res.json();
       setResult(data.response || "No response received.");
@@ -322,7 +368,7 @@ export default function CodeWorkspace() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ message: prompt, model }),
       });
       const data = await res.json();
       setResult(data.response || "No response received.");
@@ -350,7 +396,7 @@ export default function CodeWorkspace() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ message: prompt, model }),
       });
       const data = await res.json();
       setBuildResult(data.response || "No response received.");
@@ -510,54 +556,58 @@ export default function CodeWorkspace() {
             </div>
           </div>
 
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setShowBuildLangDropdown(!showBuildLangDropdown)}
-              onBlur={() => setTimeout(() => setShowBuildLangDropdown(false), 150)}
-              style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "8px 14px",
-                background: "rgba(212,175,55,0.08)",
-                border: "1px solid rgba(212,175,55,0.2)",
-                borderRadius: 10, color: "#D4AF37",
-                fontSize: 13, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              <Code2 size={13} />
-              {buildLanguage}
-              <ChevronDown size={12} />
-            </button>
-            <AnimatePresence>
-              {showBuildLangDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  style={{
-                    position: "absolute", top: "100%", right: 0,
-                    background: "#0D1420", border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 12, marginTop: 4, zIndex: 10,
-                    minWidth: 160, maxHeight: 220, overflowY: "auto",
-                  }}
-                >
-                  {LANGUAGES.map((lang) => (
-                    <button
-                      key={lang}
-                      onClick={() => { setBuildLanguage(lang); setShowBuildLangDropdown(false); }}
-                      style={{
-                        width: "100%", padding: "9px 14px",
-                        background: buildLanguage === lang ? "rgba(212,175,55,0.1)" : "transparent",
-                        border: "none", borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        color: buildLanguage === lang ? "#D4AF37" : "#8B9CC4",
-                        fontSize: 13, textAlign: "left", cursor: "pointer",
-                      }}
-                    >
-                      {lang}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ModelSelector value={model} onChange={setModel} />
+
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowBuildLangDropdown(!showBuildLangDropdown)}
+                onBlur={() => setTimeout(() => setShowBuildLangDropdown(false), 150)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 14px",
+                  background: "rgba(212,175,55,0.08)",
+                  border: "1px solid rgba(212,175,55,0.2)",
+                  borderRadius: 10, color: "#D4AF37",
+                  fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <Code2 size={13} />
+                {buildLanguage}
+                <ChevronDown size={12} />
+              </button>
+              <AnimatePresence>
+                {showBuildLangDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: "absolute", top: "100%", right: 0,
+                      background: "#0D1420", border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 12, marginTop: 4, zIndex: 10,
+                      minWidth: 160, maxHeight: 220, overflowY: "auto",
+                    }}
+                  >
+                    {LANGUAGES.map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => { setBuildLanguage(lang); setShowBuildLangDropdown(false); }}
+                        style={{
+                          width: "100%", padding: "9px 14px",
+                          background: buildLanguage === lang ? "rgba(212,175,55,0.1)" : "transparent",
+                          border: "none", borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          color: buildLanguage === lang ? "#D4AF37" : "#8B9CC4",
+                          fontSize: 13, textAlign: "left", cursor: "pointer",
+                        }}
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -748,65 +798,69 @@ export default function CodeWorkspace() {
           </div>
         </div>
 
-        {/* Language selector */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setShowLangDropdown(!showLangDropdown)}
-            onBlur={() => setTimeout(() => setShowLangDropdown(false), 150)}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "8px 14px",
-              background: "rgba(59,130,246,0.08)",
-              border: "1px solid rgba(59,130,246,0.2)",
-              borderRadius: 10, color: "#3B82F6",
-              fontSize: 13, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            <Code2 size={13} />
-            {language}
-            {langAutoDetected && (
-              <span style={{
-                fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3,
-                color: "#22C55E", background: "rgba(34,197,94,0.12)",
-                border: "1px solid rgba(34,197,94,0.3)",
-                borderRadius: 5, padding: "2px 5px",
-              }}>
-                AUTO
-              </span>
-            )}
-            <ChevronDown size={12} />
-          </button>
-          <AnimatePresence>
-            {showLangDropdown && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                style={{
-                  position: "absolute", top: "100%", right: 0,
-                  background: "#0D1420", border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: 12, marginTop: 4, zIndex: 10,
-                  minWidth: 160, maxHeight: 220, overflowY: "auto",
-                }}
-              >
-                {LANGUAGES.map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => handleManualLanguageSelect(lang)}
-                    style={{
-                      width: "100%", padding: "9px 14px",
-                      background: language === lang ? "rgba(59,130,246,0.1)" : "transparent",
-                      border: "none", borderBottom: "1px solid rgba(255,255,255,0.04)",
-                      color: language === lang ? "#3B82F6" : "#8B9CC4",
-                      fontSize: 13, textAlign: "left", cursor: "pointer",
-                    }}
-                  >
-                    {lang}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ModelSelector value={model} onChange={setModel} />
+
+          {/* Language selector */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowLangDropdown(!showLangDropdown)}
+              onBlur={() => setTimeout(() => setShowLangDropdown(false), 150)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 14px",
+                background: "rgba(59,130,246,0.08)",
+                border: "1px solid rgba(59,130,246,0.2)",
+                borderRadius: 10, color: "#3B82F6",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              <Code2 size={13} />
+              {language}
+              {langAutoDetected && (
+                <span style={{
+                  fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3,
+                  color: "#22C55E", background: "rgba(34,197,94,0.12)",
+                  border: "1px solid rgba(34,197,94,0.3)",
+                  borderRadius: 5, padding: "2px 5px",
+                }}>
+                  AUTO
+                </span>
+              )}
+              <ChevronDown size={12} />
+            </button>
+            <AnimatePresence>
+              {showLangDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  style={{
+                    position: "absolute", top: "100%", right: 0,
+                    background: "#0D1420", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12, marginTop: 4, zIndex: 10,
+                    minWidth: 160, maxHeight: 220, overflowY: "auto",
+                  }}
+                >
+                  {LANGUAGES.map((lang) => (
+                    <button
+                      key={lang}
+                      onClick={() => handleManualLanguageSelect(lang)}
+                      style={{
+                        width: "100%", padding: "9px 14px",
+                        background: language === lang ? "rgba(59,130,246,0.1)" : "transparent",
+                        border: "none", borderBottom: "1px solid rgba(255,255,255,0.04)",
+                        color: language === lang ? "#3B82F6" : "#8B9CC4",
+                        fontSize: 13, textAlign: "left", cursor: "pointer",
+                      }}
+                    >
+                      {lang}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
