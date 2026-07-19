@@ -1,10 +1,37 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Send, Paperclip, Mic, X, Loader2, FileText, Zap, Sparkles, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Paperclip, Mic, MicOff, X, Loader2, FileText, Zap, Sparkles, ChevronDown } from "lucide-react";
 import { getToken } from "../lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Web Speech API isn't in TypeScript's default lib — declare just enough
+// of the shape we actually use.
+interface SpeechRecognitionResult {
+  transcript: string;
+}
+interface SpeechRecognitionEvent extends Event {
+  results: { [index: number]: { [index: number]: SpeechRecognitionResult; isFinal: boolean } };
+  resultIndex: number;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: (() => void) | null;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  }
+}
 
 export type LeviModel = "swift" | "nova";
 
@@ -26,11 +53,56 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
   const [isAttaching, setIsAttaching] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const activeModel = MODEL_OPTIONS.find((m) => m.id === selectedModel) ?? MODEL_OPTIONS[0];
   const ActiveIcon = activeModel.icon;
+
+  useEffect(() => {
+    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
+      setVoiceSupported(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognitionClass();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < Object.keys(event.results).length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setMessage(transcript);
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.stop();
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (!voiceSupported || disabled || !recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setMessage("");
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
 
   const handlePaperclipClick = () => {
     if (disabled || isAttaching) return;
@@ -136,6 +208,7 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
         onChange={handleFileSelect}
         accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,.bmp"
       />
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 
       {attachedFile && (
         <div style={{
@@ -297,16 +370,36 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
           >
             {isAttaching ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
           </button>
-          <button style={{
-            background: "transparent", border: "none",
-            color: "#3D4F72", cursor: "pointer", padding: "6px 8px",
-            borderRadius: 8, display: "flex", alignItems: "center",
-            transition: "color 0.15s",
-          }}
-            onMouseEnter={(e) => e.currentTarget.style.color = "#8B9CC4"}
-            onMouseLeave={(e) => e.currentTarget.style.color = "#3D4F72"}
+          <button
+            onClick={toggleListening}
+            disabled={disabled || !voiceSupported}
+            title={!voiceSupported ? "Voice input not supported in this browser" : isListening ? "Stop listening" : "Speak your message"}
+            style={{
+              background: isListening ? "rgba(239,68,68,0.12)" : "transparent",
+              border: "none",
+              color: isListening ? "#EF4444" : voiceSupported ? "#3D4F72" : "#2A3348",
+              cursor: disabled || !voiceSupported ? "not-allowed" : "pointer",
+              padding: "6px 8px",
+              borderRadius: 8, display: "flex", alignItems: "center",
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => { if (!disabled && voiceSupported && !isListening) e.currentTarget.style.color = "#8B9CC4"; }}
+            onMouseLeave={(e) => { if (!isListening) e.currentTarget.style.color = voiceSupported ? "#3D4F72" : "#2A3348"; }}
           >
-            <Mic size={16} />
+            {isListening ? (
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <Mic size={16} />
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: "#EF4444",
+                  animation: "pulse 1s ease-in-out infinite",
+                }} />
+              </span>
+            ) : voiceSupported ? (
+              <Mic size={16} />
+            ) : (
+              <MicOff size={16} />
+            )}
           </button>
         </div>
 
