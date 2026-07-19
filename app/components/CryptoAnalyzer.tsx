@@ -220,7 +220,7 @@ export default function CryptoAnalyzer() {
   "novaInsight": "an advanced 3-4 paragraph deep-dive covering: volume profile and what it suggests about conviction behind the move, momentum divergence (is price making new highs/lows without matching momentum?), key psychological price levels nearby (round numbers, prior swing points), and 1-2 macro or on-chain factors a serious trader would watch for this asset right now"`
         : "";
 
-      const prompt = `You are a professional crypto trading analyst. I will give you REAL live market data. Analyze it and respond ONLY in this exact JSON format, no extra text outside the JSON:
+      const prompt = `You are a professional crypto trading analyst. I will give you REAL live market data. Analyze it and respond ONLY with valid, parseable JSON in this exact format — no extra text outside the JSON, no markdown code fences, no commentary before or after:
 
 {
   "trend": "BULLISH" or "BEARISH" or "NEUTRAL",
@@ -232,6 +232,12 @@ export default function CryptoAnalyzer() {
   "riskReward": "e.g. 1:2.5",
   "summary": "detailed 2-3 paragraph analysis covering: current market structure, key support/resistance levels, momentum, and your trade recommendation with reasoning"${novaFieldInstruction}
 }
+
+CRITICAL JSON FORMATTING RULES:
+- The entire response must be a single valid JSON object parseable by JSON.parse().
+- Inside string values, use the literal two-character escape sequence \\n for any line break — NEVER a real newline character. Every multi-paragraph field ("summary"${isNova ? `, "novaInsight"` : ""}) must be one single-line JSON string with \\n escapes, not actual line breaks.
+- Do not wrap the JSON in \`\`\`json or any other markdown code fence.
+- Do not include any text, explanation, or preamble before the opening { or after the closing }.
 
 LIVE MARKET DATA for ${pair.toUpperCase()} (${timeframe} timeframe):
 - Current Price: ${formatPrice(data.price)}
@@ -264,10 +270,36 @@ Based on this REAL data, provide precise entry, stop loss, and take profit level
       const responseData = await res.json();
       const text = responseData.response || "";
 
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      // Strip markdown code fences if the model wrapped the JSON in one
+      // despite instructions not to.
+      const fenceStripped = text.replace(/```json\s*|```\s*/g, "").trim();
+
+      const jsonMatch = fenceStripped.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("Could not parse analysis");
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        // Fallback repair: models occasionally emit raw newlines/tabs
+        // inside string values instead of \n escapes, which breaks
+        // JSON.parse. Escape any literal control characters that appear
+        // between quotes before retrying — this recovers the common case
+        // without needing a full JSON grammar parser.
+        let repaired = "";
+        let inString = false;
+        let prevChar = "";
+        for (const char of jsonMatch[0]) {
+          if (char === '"' && prevChar !== "\\") inString = !inString;
+          if (inString && char === "\n") repaired += "\\n";
+          else if (inString && char === "\r") repaired += "\\r";
+          else if (inString && char === "\t") repaired += "\\t";
+          else repaired += char;
+          prevChar = char;
+        }
+        parsed = JSON.parse(repaired);
+      }
+
       setAnalysis({
         trend: parsed.trend,
         confidence: typeof parsed.confidence === "number" ? parsed.confidence : 50,
