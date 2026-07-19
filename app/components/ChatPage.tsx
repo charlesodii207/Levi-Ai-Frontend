@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu } from "lucide-react";
+import { Menu, Mic } from "lucide-react";
+import VoiceMode from "./VoiceMode";
 import Sidebar, { LeviMode } from "./Sidebar";
 import MessageList from "./MessageList";
 import PromptBox from "./PromptBox";
@@ -38,6 +39,28 @@ export default function ChatPage() {
   const [currentMode, setCurrentMode] = useState<LeviMode | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<LeviModel>("swift");
+  const [voiceModeOpen, setVoiceModeOpen] = useState(false);
+
+  // Used by VoiceMode: sends a voice-transcribed turn, updates the visible
+  // chat history the same way typed messages do, and resolves with Levi's
+  // full reply text once the stream completes so VoiceMode can speak it.
+  async function handleVoiceSend(userText: string): Promise<string> {
+    setMessages((prev) => [...prev, { role: "user", content: userText }]);
+
+    return new Promise((resolve, reject) => {
+      let fullContent = "";
+      streamMessage(
+        { message: userText, conversation_id: conversationId ?? undefined, mode_prompt: currentMode?.systemPrompt, model: selectedModel },
+        (chunk) => { fullContent += chunk; },
+        (meta) => { if (meta.conversation_id) setConversationId(meta.conversation_id); setRefreshSidebar((n) => n + 1); },
+        () => {
+          setMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+          setRefreshSidebar((n) => n + 1);
+          resolve(fullContent);
+        }
+      ).catch(reject);
+    });
+  }
 
   useEffect(() => {
     if (!isLoggedIn()) router.push("/login");
@@ -194,15 +217,38 @@ export default function ChatPage() {
               </motion.div>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{
-              width: 8, height: 8, borderRadius: "50%",
-              background: "#22c55e",
-              boxShadow: "0 0 6px #22c55e",
-            }} />
-            <span style={{ color: "#3D4F72", fontSize: 12 }}>Levi is online</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={() => setVoiceModeOpen(true)}
+              title="Voice mode"
+              style={{
+                width: 34, height: 34, borderRadius: 9,
+                background: "rgba(59,130,246,0.08)",
+                border: "1px solid rgba(59,130,246,0.2)",
+                color: "#3B82F6", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <Mic size={16} />
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: "#22c55e",
+                boxShadow: "0 0 6px #22c55e",
+              }} />
+              <span style={{ color: "#3D4F72", fontSize: 12 }}>Levi is online</span>
+            </div>
           </div>
         </div>
+
+        {voiceModeOpen && (
+          <VoiceMode
+            onClose={() => setVoiceModeOpen(false)}
+            onSend={handleVoiceSend}
+            modelLabel={selectedModel === "nova" ? "Levi Nova" : "Levi Swift"}
+          />
+        )}
 
         {/* Dedicated mode UIs */}
         {isCodingMode ? (
