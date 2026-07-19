@@ -14,6 +14,7 @@ import WritingStudio from "./WritingStudio";
 import ResearchHub from "./ResearchHub";
 import { streamMessage, getMessages } from "@/app/lib/api";
 import { isLoggedIn } from "@/app/lib/auth";
+import type { LeviModel } from "./PromptBox";
 
 type Message = {
   role: "user" | "assistant";
@@ -36,6 +37,7 @@ export default function ChatPage() {
   const [streamingContent, setStreamingContent] = useState("");
   const [currentMode, setCurrentMode] = useState<LeviMode | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<LeviModel>("swift");
 
   useEffect(() => {
     if (!isLoggedIn()) router.push("/login");
@@ -79,7 +81,7 @@ export default function ChatPage() {
 
     try {
       await streamMessage(
-        { message: outgoingForAI, conversation_id: conversationId ?? undefined, mode_prompt: currentMode?.systemPrompt },
+        { message: outgoingForAI, conversation_id: conversationId ?? undefined, mode_prompt: currentMode?.systemPrompt, model: selectedModel },
         (chunk) => { fullContent += chunk; setStreamingContent(fullContent); },
         (meta) => { if (meta.conversation_id) setConversationId(meta.conversation_id); setRefreshSidebar((n) => n + 1); },
         () => {
@@ -370,7 +372,12 @@ export default function ChatPage() {
               background: "linear-gradient(to top, #080C14 70%, transparent)",
             }}>
               <div style={{ width: "100%", maxWidth: 760 }}>
-                <PromptBox onSend={handleSend} disabled={isStreaming} />
+                <PromptBox
+                  onSend={handleSend}
+                  disabled={isStreaming}
+                  selectedModel={selectedModel}
+                  onModelChange={setSelectedModel}
+                />
               </div>
             </div>
           </>

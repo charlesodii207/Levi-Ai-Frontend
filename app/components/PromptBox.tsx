@@ -1,23 +1,36 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Send, Paperclip, Mic, X, Loader2, FileText } from "lucide-react";
+import { Send, Paperclip, Mic, X, Loader2, FileText, Zap, Sparkles, ChevronDown } from "lucide-react";
 import { getToken } from "../lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+export type LeviModel = "swift" | "nova";
+
+const MODEL_OPTIONS: { id: LeviModel; label: string; description: string; icon: typeof Zap }[] = [
+  { id: "swift", label: "Levi Swift", description: "Fast responses", icon: Zap },
+  { id: "nova", label: "Levi Nova", description: "Deeper reasoning", icon: Sparkles },
+];
+
 type PromptBoxProps = {
   onSend: (message: string, hiddenContext?: string) => void;
   disabled?: boolean;
+  selectedModel: LeviModel;
+  onModelChange: (model: LeviModel) => void;
 };
 
-export default function PromptBox({ onSend, disabled = false }: PromptBoxProps) {
+export default function PromptBox({ onSend, disabled = false, selectedModel, onModelChange }: PromptBoxProps) {
   const [message, setMessage] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activeModel = MODEL_OPTIONS.find((m) => m.id === selectedModel) ?? MODEL_OPTIONS[0];
+  const ActiveIcon = activeModel.icon;
 
   const handlePaperclipClick = () => {
     if (disabled || isAttaching) return;
@@ -199,7 +212,75 @@ export default function PromptBox({ onSend, disabled = false }: PromptBoxProps) 
         borderTop: "1px solid rgba(255,255,255,0.04)",
       }}>
         {/* Left actions */}
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center", position: "relative" }}>
+          <button
+            onClick={() => setModelMenuOpen((open) => !open)}
+            disabled={disabled}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: "rgba(59,130,246,0.08)",
+              border: "1px solid rgba(59,130,246,0.2)",
+              color: "#8B9CC4",
+              cursor: disabled ? "not-allowed" : "pointer",
+              padding: "6px 10px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              marginRight: 4,
+            }}
+          >
+            <ActiveIcon size={13} color="#3B82F6" />
+            {activeModel.label}
+            <ChevronDown size={12} />
+          </button>
+
+          {modelMenuOpen && (
+            <div style={{
+              position: "absolute",
+              bottom: "calc(100% + 8px)",
+              left: 0,
+              background: "rgba(13,20,32,0.98)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 12,
+              padding: 6,
+              minWidth: 200,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+              zIndex: 20,
+            }}>
+              {MODEL_OPTIONS.map((opt) => {
+                const OptIcon = opt.icon;
+                const isActive = opt.id === selectedModel;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      onModelChange(opt.id);
+                      setModelMenuOpen(false);
+                    }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      width: "100%",
+                      background: isActive ? "rgba(59,130,246,0.1)" : "transparent",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <OptIcon size={15} color={isActive ? "#3B82F6" : "#8B9CC4"} />
+                    <div>
+                      <div style={{ color: isActive ? "#F0F4FF" : "#C9D4EE", fontSize: 13, fontWeight: 600 }}>
+                        {opt.label}
+                      </div>
+                      <div style={{ color: "#3D4F72", fontSize: 11 }}>{opt.description}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <button
             onClick={handlePaperclipClick}
             disabled={disabled || isAttaching}

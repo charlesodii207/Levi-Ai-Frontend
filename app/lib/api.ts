@@ -117,6 +117,7 @@ export async function getMessages(conversationId: number) {
 export async function sendMessage(data: {
   message: string;
   conversation_id?: number;
+  model?: string; // "swift" (Groq/Llama) or "nova" (Gemini) — matches ChatRequest.model in chat.py
 }) {
   return request<{
     conversation_id: number;
@@ -130,9 +131,14 @@ export async function sendMessage(data: {
 }
 
 export async function streamMessage(
-  data: { message: string; conversation_id?: number; mode_prompt?: string },
+  data: {
+    message: string;
+    conversation_id?: number;
+    mode_prompt?: string;
+    model?: string; // "swift" (Groq/Llama) or "nova" (Gemini)
+  },
   onChunk: (text: string) => void,
-  onMeta: (meta: { conversation_id: number; title: string }) => void,
+  onMeta: (meta: { conversation_id: number; title: string; model?: string }) => void,
   onDone: () => void
 ) {
   const token = getToken();
@@ -164,7 +170,7 @@ export async function streamMessage(
         const json = JSON.parse(line.slice(6));
         if (json.type === "chunk") onChunk(json.text);
         if (json.type === "meta" || json.type === "title")
-          onMeta({ conversation_id: json.conversation_id, title: json.title });
+          onMeta({ conversation_id: json.conversation_id, title: json.title, model: json.model });
         if (json.type === "done") onDone();
       } catch {}
     }
