@@ -136,6 +136,7 @@ export async function streamMessage(
     conversation_id?: number;
     mode_prompt?: string;
     model?: string; // "swift" (Groq/Llama) or "nova" (Gemini)
+    web_search?: boolean; // if true, backend searches the web and injects results as context
   },
   onChunk: (text: string) => void,
   onMeta: (meta: { conversation_id: number; title: string; model?: string }) => void,

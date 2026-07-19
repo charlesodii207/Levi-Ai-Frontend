@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Mic, MicOff, X, Loader2, FileText, Zap, Sparkles, ChevronDown } from "lucide-react";
+import { Send, Paperclip, Mic, MicOff, X, Loader2, FileText, Zap, Sparkles, ChevronDown, Globe } from "lucide-react";
 import { getToken } from "../lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -41,7 +41,7 @@ const MODEL_OPTIONS: { id: LeviModel; label: string; description: string; icon: 
 ];
 
 type PromptBoxProps = {
-  onSend: (message: string, hiddenContext?: string) => void;
+  onSend: (message: string, hiddenContext?: string, webSearch?: boolean) => void;
   disabled?: boolean;
   selectedModel: LeviModel;
   onModelChange: (model: LeviModel) => void;
@@ -55,6 +55,7 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(true);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
@@ -129,7 +130,7 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
 
     // No attachment: business as usual, single clean message.
     if (!attachedFile) {
-      onSend(trimmed);
+      onSend(trimmed, undefined, webSearchEnabled);
       setMessage("");
       if (textareaRef.current) textareaRef.current.style.height = "auto";
       return;
@@ -167,7 +168,7 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
       // This is the only part the user sees in their own chat bubble.
       const displayMessage = `📎 ${data.filename}\n${trimmed || "What can you tell me about this file?"}`;
 
-      onSend(displayMessage, hiddenContext);
+      onSend(displayMessage, hiddenContext, webSearchEnabled);
 
       setMessage("");
       setAttachedFile(null);
@@ -400,6 +401,28 @@ export default function PromptBox({ onSend, disabled = false, selectedModel, onM
             ) : (
               <MicOff size={16} />
             )}
+          </button>
+          <button
+            onClick={() => setWebSearchEnabled((v) => !v)}
+            disabled={disabled}
+            title={webSearchEnabled ? "Web search on — click to disable" : "Search the web for this message"}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: webSearchEnabled ? "rgba(34,197,94,0.12)" : "transparent",
+              border: "none",
+              color: webSearchEnabled ? "#22C55E" : "#3D4F72",
+              cursor: disabled ? "not-allowed" : "pointer",
+              padding: "6px 10px",
+              borderRadius: 8,
+              fontSize: 11,
+              fontWeight: 600,
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => { if (!disabled && !webSearchEnabled) e.currentTarget.style.color = "#8B9CC4"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = webSearchEnabled ? "#22C55E" : "#3D4F72"; }}
+          >
+            <Globe size={15} />
+            {webSearchEnabled && "Search"}
           </button>
         </div>
 

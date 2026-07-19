@@ -89,7 +89,7 @@ export default function ChatPage() {
     setStreamingContent("");
   }
 
-  async function handleSend(message: string, hiddenContext?: string) {
+  async function handleSend(message: string, hiddenContext?: string, webSearch?: boolean) {
     if (!message.trim() || isStreaming) return;
     setMessages((prev) => [...prev, { role: "user", content: message }]);
     setIsStreaming(true);
@@ -104,7 +104,7 @@ export default function ChatPage() {
 
     try {
       await streamMessage(
-        { message: outgoingForAI, conversation_id: conversationId ?? undefined, mode_prompt: currentMode?.systemPrompt, model: selectedModel },
+        { message: outgoingForAI, conversation_id: conversationId ?? undefined, mode_prompt: currentMode?.systemPrompt, model: selectedModel, web_search: webSearch },
         (chunk) => { fullContent += chunk; setStreamingContent(fullContent); },
         (meta) => { if (meta.conversation_id) setConversationId(meta.conversation_id); setRefreshSidebar((n) => n + 1); },
         () => {
