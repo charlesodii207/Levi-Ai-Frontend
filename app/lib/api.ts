@@ -177,3 +177,65 @@ export async function streamMessage(
     }
   }
 }
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+
+export type UserSettings = {
+  id: number;
+  username: string;
+  email: string;
+  bio: string | null;
+  avatar_url: string | null;
+  default_model: string; // "swift" | "nova"
+  theme: string; // "light" | "dark"
+  email_notifications: boolean;
+};
+
+export async function getSettings() {
+  return request<UserSettings>("/settings/");
+}
+
+export async function updateProfile(data: {
+  username?: string;
+  bio?: string;
+  avatar_url?: string;
+  default_model?: string;
+  theme?: string;
+  email_notifications?: boolean;
+}) {
+  return request<UserSettings>("/settings/profile", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function changePassword(data: {
+  current_password: string;
+  new_password: string;
+}) {
+  return request<{ message: string }>("/settings/change-password", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function requestEmailChange(data: { new_email: string }) {
+  return request<{ message: string }>("/settings/change-email/request", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function verifyEmailChange(data: { otp: string }) {
+  return request<{ message: string }>("/settings/change-email/verify", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteAccount(data: { password: string }) {
+  return request<{ message: string }>("/settings/account", {
+    method: "DELETE",
+    body: JSON.stringify(data),
+  });
+}
