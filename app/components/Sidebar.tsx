@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, MessageSquare, Trash2, Pencil, Check, X,
   LogOut, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
+  Settings,
 } from "lucide-react";
 import { getConversations, deleteConversation, renameConversation } from "@/app/lib/api";
 import { removeToken } from "@/app/lib/auth";
@@ -407,7 +408,29 @@ export default function Sidebar({
         padding: effectiveCollapsed ? "12px 8px" : "12px 10px",
         borderTop: "1px solid rgba(255,255,255,0.04)",
         flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
       }}>
+        <button
+          onClick={() => { router.push("/settings"); onCloseMobile?.(); }}
+          style={{
+            width: "100%",
+            padding: effectiveCollapsed ? "9px 0" : "9px 12px",
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.04)",
+            borderRadius: 10, color: "#3D4F72", cursor: "pointer",
+            display: "flex", alignItems: "center",
+            justifyContent: effectiveCollapsed ? "center" : "flex-start",
+            gap: 8, fontSize: 12, transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "#8B9CC4"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "#3D4F72"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"; }}
+        >
+          <Settings size={13} />
+          {!effectiveCollapsed && "Settings"}
+        </button>
+
         <button
           onClick={() => { removeToken(); router.push("/login"); }}
           style={{
