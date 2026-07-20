@@ -6,11 +6,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Search, Microscope, GitCompare, ShieldCheck, ArrowLeft,
-  Copy, Check, Download, Loader2, Sparkles, Zap,
+  Copy, Check, Download, Loader2, Sparkles, Zap, Bot,
 } from "lucide-react";
 import type { LeviModel } from "./PromptBox";
 
-type View = "landing" | "deepdive" | "compare" | "factcheck";
+type View = "landing" | "deepdive" | "compare" | "factcheck" | "agent";
 
 const HUB_COLOR = "#F97316"; // overall Research identity (matches sidebar mode color)
 
@@ -48,6 +48,14 @@ const TOOLS: ToolDef[] = [
     color: "#22C55E", // green
     tags: ["Key Facts", "Accuracy", "Summary"],
   },
+  {
+    id: "agent",
+    label: "Research Agent",
+    description: "Give it a complex question — it searches multiple times, digs deeper as needed, and reports back with one thorough answer.",
+    icon: <Bot size={20} color="#A855F7" />,
+    color: "#A855F7", // purple
+    tags: ["Multi-Step", "Autonomous Search", "Sourced Answer"],
+  },
 ];
 
 async function callLevi(prompt: string, model: LeviModel = "swift"): Promise<string> {
@@ -62,6 +70,38 @@ async function callLevi(prompt: string, model: LeviModel = "swift"): Promise<str
   });
   const data = await res.json();
   return data.response || "No response received.";
+}
+
+type AgentStep = {
+  action: string;
+  query?: string;
+  result_count?: number;
+  response?: string;
+  search_rounds_used?: number;
+};
+
+type AgentResult = {
+  answer: string;
+  steps: AgentStep[];
+  sources: string[];
+  search_count: number;
+};
+
+async function callAgent(query: string, model: LeviModel = "swift"): Promise<AgentResult> {
+  const token = localStorage.getItem("levi_token");
+  const res = await fetch("https://levi-ai-1ug2.onrender.com/agent/research", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ query, model }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || "Research agent failed");
+  }
+  return res.json();
 }
 
 const MODEL_OPTIONS: { id: LeviModel; label: string }[] = [
@@ -647,6 +687,211 @@ ${text}
 }
 
 // ---------------------------------------------------------------------------
+// Tool 4: Research Agent — multi-step, searches as many times as needed
+// ---------------------------------------------------------------------------
+
+function AgentTool({ onBack, model, onModelChange }: { onBack: () => void; model: LeviModel; onModelChange: (m: LeviModel) => void }) {
+  const tool = TOOLS[3];
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<AgentResult | null>(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function run() {
+    if (!query.trim()) { setError("Enter a research question first."); return; }
+    setError("");
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const response = await callAgent(query.trim(), model);
+      setResult(response);
+    } catch (e: any) {
+      setError(e.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copy() {
+    if (!result) return;
+    navigator.clipboard.writeText(result.answer);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const searchSteps = result?.steps.filter((s) => s.action === "search") || [];
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "28px 24px" }}>
+      <div style={{ width: "100%", maxWidth: 820, margin: "0 auto" }}>
+        <ToolHeader tool={tool} onBack={onBack} model={model} onModelChange={onModelChange} />
+
+        <div style={{
+          background: "#0D1117",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 16,
+        }}>
+          <label style={{ color: "#6B7280", fontSize: 11, fontWeight: 600, letterSpacing: 0.5, display: "block", marginBottom: 8 }}>
+            RESEARCH QUESTION
+          </label>
+          <textarea
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="e.g. Compare the top 3 EV stocks right now and which looks strongest for the next year..."
+            rows={3}
+            style={{
+              width: "100%",
+              background: "#080A10",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 12,
+              padding: "12px 14px",
+              color: "white",
+              fontSize: 14,
+              fontWeight: 500,
+              outline: "none",
+              marginBottom: 14,
+              resize: "none",
+              lineHeight: 1.6,
+              fontFamily: "Inter, sans-serif",
+            }}
+          />
+
+          {error && (
+            <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 12, padding: "10px 14px", background: "rgba(239,68,68,0.08)", borderRadius: 8 }}>
+              ⚠ {error}
+            </p>
+          )}
+
+          <SubmitButton
+            onClick={run}
+            loading={loading}
+            color={tool.color}
+            icon={<Bot size={15} />}
+            label="Start Research"
+            loadingLabel="Researching..."
+          />
+
+          <p style={{ color: "#374151", fontSize: 11, marginTop: 10 }}>
+            This may take longer than a normal reply — it can search up to 3 times before answering.
+          </p>
+        </div>
+
+        {/* Live "what it's doing" trail while working */}
+        {loading && (
+          <div style={{
+            background: "#0D1117",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 16,
+            padding: "18px 22px",
+            marginBottom: 16,
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+          }}>
+            <Loader2 size={22} color={tool.color} style={{ animation: "spin 1s linear infinite" }} />
+            <p style={{ color: "#6B7280", fontSize: 13, textAlign: "center" }}>
+              Searching, cross-checking, and building a complete answer...
+            </p>
+          </div>
+        )}
+
+        {/* Result */}
+        {result && !loading && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+            {/* Steps taken — transparency into what the agent actually did */}
+            {searchSteps.length > 0 && (
+              <div style={{
+                background: "rgba(168,85,247,0.05)",
+                border: "1px solid rgba(168,85,247,0.2)",
+                borderRadius: 14,
+                padding: "14px 18px",
+                marginBottom: 14,
+              }}>
+                <p style={{ color: "#A855F7", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>
+                  {searchSteps.length} SEARCH{searchSteps.length > 1 ? "ES" : ""} RUN
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {searchSteps.map((step, i) => (
+                    <p key={i} style={{ color: "#9CA3AF", fontSize: 12, margin: 0 }}>
+                      {i + 1}. "{step.query}" — {step.result_count} results
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Answer */}
+            <div style={{
+              background: "#0D1117",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 16,
+              display: "flex", flexDirection: "column", overflow: "hidden",
+              marginBottom: 14,
+            }}>
+              <div style={{
+                padding: "12px 18px",
+                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }}>
+                <span style={{ color: "#6B7280", fontSize: 11, fontWeight: 600, letterSpacing: 0.5 }}>ANSWER</span>
+                <button
+                  onClick={copy}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "5px 10px",
+                    background: copied ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${copied ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)"}`,
+                    borderRadius: 7, color: copied ? "#22c55e" : "#9CA3AF",
+                    fontSize: 11, cursor: "pointer",
+                  }}
+                >
+                  {copied ? <Check size={11} /> : <Copy size={11} />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <div style={{ padding: "18px 22px" }} className="markdown-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.answer}</ReactMarkdown>
+              </div>
+            </div>
+
+            {/* Sources */}
+            {result.sources.length > 0 && (
+              <div style={{
+                background: "#0D1117",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 14,
+                padding: "14px 18px",
+              }}>
+                <p style={{ color: "#6B7280", fontSize: 11, fontWeight: 600, letterSpacing: 0.5, marginBottom: 10 }}>
+                  SOURCES
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {result.sources.map((url, i) => (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "#3B82F6", fontSize: 12, textDecoration: "none", wordBreak: "break-all" }}
+                    >
+                      {url}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Landing + router
 // ---------------------------------------------------------------------------
 
@@ -657,6 +902,7 @@ export default function ResearchHub() {
   if (view === "deepdive") return <DeepDiveTool onBack={() => setView("landing")} model={model} onModelChange={setModel} />;
   if (view === "compare") return <CompareTool onBack={() => setView("landing")} model={model} onModelChange={setModel} />;
   if (view === "factcheck") return <FactCheckTool onBack={() => setView("landing")} model={model} onModelChange={setModel} />;
+  if (view === "agent") return <AgentTool onBack={() => setView("landing")} model={model} onModelChange={setModel} />;
 
   return (
     <div style={{
