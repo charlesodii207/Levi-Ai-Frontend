@@ -94,6 +94,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "Admins", href: "/admin/admins", Icon: IconShield, visible: tier !== "moderator" },
     { label: "Appeals", href: "/admin/appeals", Icon: IconMail, visible: tier !== "moderator" },
     { label: "Action Logs", href: "/admin/logs", Icon: IconLogs, visible: tier === "owner" || tier === "super_admin" },
+    { label: "Analytics", href: "/admin/analytics", Icon: IconLogs, visible: tier === "owner" || tier === "super_admin" },
     { label: "Settings", href: "/admin/settings", Icon: IconSettings, visible: true },
   ];
   const visibleNavItems = navItems.filter((i) => i.visible);
