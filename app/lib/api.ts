@@ -239,3 +239,42 @@ export async function deleteAccount(data: { password: string }) {
     body: JSON.stringify(data),
   });
 }
+// ── Billing ──────────────────────────────────────────────────────────────────
+// Add this block to your existing lib/api.ts — uses the same `request<T>`
+// helper already defined at the top of that file.
+
+export type Plan = {
+  name: string; // "free" | "pro" | "prime"
+  price_usd: number;
+  original_price_usd: number | null;
+  discount_percent: number | null;
+  daily_limit: number | null;
+  models: string[];
+  extras: string[];
+};
+
+export type BillingStatus = {
+  tier: string; // "free" | "pro" | "prime"
+  status: string; // "active" | "cancelled" | "expired"
+  expires_at: string | null;
+  daily_activity_count: number;
+  daily_limit: number | null;
+};
+
+export async function getPlans() {
+  return request<Plan[]>("/billing/plans");
+}
+
+export async function getBillingStatus() {
+  return request<BillingStatus>("/billing/status");
+}
+
+export async function subscribeToPlan(tier: "pro" | "prime") {
+  return request<{ authorization_url: string; reference: string }>(
+    "/billing/subscribe",
+    {
+      method: "POST",
+      body: JSON.stringify({ tier }),
+    }
+  );
+}

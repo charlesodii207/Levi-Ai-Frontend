@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, MessageSquare, Trash2, Pencil, Check, X,
   LogOut, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Settings,
+  Settings, Crown,
 } from "lucide-react";
 import { getConversations, deleteConversation, renameConversation } from "@/app/lib/api";
 import { removeToken } from "@/app/lib/auth";
@@ -412,6 +412,23 @@ export default function Sidebar({
         flexDirection: "column",
         gap: 6,
       }}>
+        <button
+          onClick={() => { router.push("/pricing"); onCloseMobile?.(); }}
+          style={{
+            width: "100%",
+            padding: effectiveCollapsed ? "9px 0" : "9px 12px",
+            background: "linear-gradient(135deg, rgba(212,175,55,0.1), rgba(244,212,107,0.06))",
+            border: "1px solid rgba(212,175,55,0.25)",
+            borderRadius: 10, color: "#D4AF37", cursor: "pointer",
+            display: "flex", alignItems: "center",
+            justifyContent: effectiveCollapsed ? "center" : "flex-start",
+            gap: 8, fontSize: 12, fontWeight: 600, transition: "all 0.15s",
+          }}
+        >
+          <Crown size={13} />
+          {!effectiveCollapsed && "Upgrade"}
+        </button>
+
         <button
           onClick={() => { router.push("/settings"); onCloseMobile?.(); }}
           style={{
