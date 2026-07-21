@@ -256,6 +256,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         padding: isMobile ? "22px 18px" : "36px 44px",
         boxSizing: "border-box",
         display: isMobile && mobileMenuOpen ? "none" : "block",
+        height: isMobile ? "calc(100vh - 58px)" : "100vh",
+        overflowY: "auto",
       }}>
         {children}
       </div>
