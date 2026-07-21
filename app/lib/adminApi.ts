@@ -173,3 +173,41 @@ export function approveAppeal(appealId: number) {
 export function rejectAppeal(appealId: number) {
   return adminRequest(`/admin/appeals/${appealId}/reject`, { method: "POST" });
 }
+// ---------------------------------------------------------------------------
+// Analytics (Phase 19)
+// ---------------------------------------------------------------------------
+
+export function getAnalyticsOverview() {
+  return adminRequest("/admin/analytics/overview");
+}
+
+export function getAnalyticsGrowth(days = 30) {
+  return adminRequest(`/admin/analytics/growth?days=${days}`);
+}
+
+export function getAnalyticsMessageVolume(days = 30) {
+  return adminRequest(`/admin/analytics/message-volume?days=${days}`);
+}
+
+export function getAnalyticsModels() {
+  return adminRequest("/admin/analytics/models");
+}
+
+export function getAnalyticsModes() {
+  return adminRequest("/admin/analytics/modes");
+}
+
+export function getAnalyticsSubscriptions() {
+  return adminRequest("/admin/analytics/subscriptions");
+}
+
+export function getAnalyticsHistory(days = 30) {
+  return adminRequest(`/admin/analytics/history?days=${days}`);
+}
+
+export function runAnalyticsSnapshot(forDate?: string) {
+  return adminRequest(
+    `/admin/analytics/snapshot/run${forDate ? `?for_date=${forDate}` : ""}`,
+    { method: "POST" }
+  );
+}
