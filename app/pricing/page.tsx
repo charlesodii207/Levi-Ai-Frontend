@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, Loader2, Zap, Crown, Sparkles } from "lucide-react";
 import { isLoggedIn } from "@/app/lib/auth";
-import { getPlans, subscribeToPlan, type Plan } from "@/app/lib/api";
+import { getPlans, getBillingStatus, subscribeToPlan, type Plan } from "@/app/lib/api";
 
 const TIER_META: Record<
   string,
@@ -19,6 +19,7 @@ const TIER_META: Record<
 export default function PricingPage() {
   const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [currentTier, setCurrentTier] = useState<string>("free");
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,14 +29,17 @@ export default function PricingPage() {
       router.push("/login");
       return;
     }
-    getPlans()
-      .then(setPlans)
+    Promise.all([getPlans(), getBillingStatus()])
+      .then(([plansRes, statusRes]) => {
+        setPlans(plansRes);
+        setCurrentTier(statusRes.tier);
+      })
       .catch(() => setError("Couldn't load plans. Try refreshing."))
       .finally(() => setLoading(false));
   }, [router]);
 
   async function handleSubscribe(tier: string) {
-    if (tier === "free") return;
+    if (tier === "free" || tier === currentTier) return;
     setSubscribing(tier);
     setError(null);
     try {
@@ -133,6 +137,7 @@ export default function PricingPage() {
             const meta = TIER_META[plan.name] ?? TIER_META.free;
             const isPaid = plan.name !== "free";
             const isPrime = plan.name === "prime";
+            const isCurrent = plan.name === currentTier;
 
             return (
               <motion.div
@@ -141,17 +146,36 @@ export default function PricingPage() {
                 animate={{ opacity: 1, y: 0 }}
                 style={{
                   background: "rgba(13,20,32,0.8)",
-                  border: isPrime
+                  border: isCurrent
+                    ? "1px solid rgba(34,197,94,0.35)"
+                    : isPrime
                     ? "1px solid rgba(212,175,55,0.35)"
                     : "1px solid rgba(255,255,255,0.07)",
                   borderRadius: 18,
                   padding: 28,
                   backdropFilter: "blur(8px)",
                   position: "relative",
-                  boxShadow: isPrime ? "0 0 40px rgba(212,175,55,0.08)" : "none",
+                  boxShadow: isPrime && !isCurrent ? "0 0 40px rgba(212,175,55,0.08)" : "none",
                 }}
               >
-                {isPrime && (
+                {isCurrent && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: -12,
+                      left: 28,
+                      padding: "3px 12px",
+                      borderRadius: 20,
+                      background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                      color: "#08140C",
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  >
+                    YOUR PLAN
+                  </div>
+                )}
+                {!isCurrent && isPrime && (
                   <div
                     style={{
                       position: "absolute",
@@ -224,25 +248,29 @@ export default function PricingPage() {
 
                 <button
                   onClick={() => handleSubscribe(plan.name)}
-                  disabled={!isPaid || subscribing === plan.name}
+                  disabled={!isPaid || isCurrent || subscribing === plan.name}
                   style={{
                     width: "100%",
                     padding: "11px 0",
                     borderRadius: 10,
-                    border: isPrime
+                    border: isCurrent
+                      ? "1px solid rgba(34,197,94,0.3)"
+                      : isPrime
                       ? "1px solid rgba(212,175,55,0.4)"
                       : isPaid
                       ? "1px solid rgba(59,130,246,0.3)"
                       : "1px solid rgba(255,255,255,0.07)",
-                    background: isPrime
+                    background: isCurrent
+                      ? "rgba(34,197,94,0.08)"
+                      : isPrime
                       ? "linear-gradient(135deg, rgba(212,175,55,0.15), rgba(244,212,107,0.1))"
                       : isPaid
                       ? "rgba(0,87,255,0.12)"
                       : "transparent",
-                    color: isPrime ? "#D4AF37" : isPaid ? "#3B82F6" : "#3D4F72",
+                    color: isCurrent ? "#22c55e" : isPrime ? "#D4AF37" : isPaid ? "#3B82F6" : "#3D4F72",
                     fontSize: 13,
                     fontWeight: 700,
-                    cursor: isPaid ? "pointer" : "default",
+                    cursor: isPaid && !isCurrent ? "pointer" : "default",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -251,6 +279,8 @@ export default function PricingPage() {
                 >
                   {subscribing === plan.name ? (
                     <Loader2 size={14} className="animate-spin" />
+                  ) : isCurrent ? (
+                    "Current Plan"
                   ) : isPaid ? (
                     "Subscribe"
                   ) : (
