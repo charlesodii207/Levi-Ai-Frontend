@@ -54,7 +54,31 @@ export default function Sidebar({
   // ignore it while the mobile drawer is showing.
   const effectiveCollapsed = mobileOpen ? false : collapsed;
 
-  useEffect(() => { loadConversations(); }, [refreshTrigger]);
+  useEffect(() => { loadConversations(); }, []); // initial load only
+
+  useEffect(() => {
+    // refreshTrigger fires after every message sent. Blindly refetching
+    // the whole conversation list every time doesn't scale — instead,
+    // only hit the server when this is a genuinely new conversation
+    // (need its real server-generated title). For an existing
+    // conversation being continued, just move it to the top locally —
+    // that's the only thing that visibly changes for it anyway.
+    if (refreshTrigger === 0 || currentConversationId == null) return;
+
+    setConversations((prev) => {
+      const idx = prev.findIndex((c) => c.id === currentConversationId);
+      if (idx === -1) {
+        loadConversations();
+        return prev;
+      }
+      if (idx === 0) return prev;
+      const updated = [...prev];
+      const [item] = updated.splice(idx, 1);
+      updated.unshift(item);
+      return updated;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
   useEffect(() => { if (editingId && editRef.current) editRef.current.focus(); }, [editingId]);
 
   async function loadConversations() {

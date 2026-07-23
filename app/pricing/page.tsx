@@ -107,7 +107,7 @@ export default function PricingPage() {
         </div>
 
         <p style={{ color: "#3D4F72", fontSize: 14, marginBottom: 32, marginLeft: 50 }}>
-          Prices shown in USD. Checkout converts to Naira at the live exchange rate.
+          Prices shown in USD. Checkout converts to your local currency at checkout.
         </p>
 
         {error && (
