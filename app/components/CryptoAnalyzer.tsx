@@ -91,7 +91,10 @@ type TFBias = {
 };
 
 // ---------------------------------------------------------------------------
-// Binance data fetching
+// Live price card data (fetched directly from the browser — this is separate
+// from the backend's own Kraken-based analysis and is just used for the
+// top price ticker card, so it stays on Binance since it runs client-side
+// and isn't blocked the way server-side Render requests are).
 // ---------------------------------------------------------------------------
 
 async function fetchLiveData(
@@ -138,67 +141,6 @@ async function fetchLiveData(
     volume24h: parseFloat(ticker.volume),
     candles,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Candle-only fetch for multi-timeframe confluence
-// ---------------------------------------------------------------------------
-
-async function fetchCandlesOnly(
-  pair: string,
-  interval: string
-): Promise<Candle[]> {
-  const symbol = pair.replace("/", "").toUpperCase();
-
-  const candleRes = await fetch(
-    `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=50`
-  );
-
-  if (!candleRes.ok) {
-    throw new Error("Failed to fetch timeframe data from Binance");
-  }
-
-  const rawCandles = await candleRes.json();
-
-  return rawCandles
-    .slice(-20)
-    .map((c: any[]) => ({
-      open: parseFloat(c[1]),
-      high: parseFloat(c[2]),
-      low: parseFloat(c[3]),
-      close: parseFloat(c[4]),
-      time: new Date(c[0]).toISOString(),
-    }));
-}
-
-// ---------------------------------------------------------------------------
-// Lightweight local bias calculation
-// ---------------------------------------------------------------------------
-
-function quickBias(candles: Candle[]): Bias {
-  if (candles.length < 20) {
-    return "NEUTRAL";
-  }
-
-  const closes = candles.map((c) => c.close);
-
-  const sma10 =
-    closes.slice(-10).reduce((a, b) => a + b, 0) / 10;
-
-  const sma20 =
-    closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-
-  const lastClose = closes[closes.length - 1];
-
-  if (sma10 > sma20 && lastClose > sma10) {
-    return "BULLISH";
-  }
-
-  if (sma10 < sma20 && lastClose < sma10) {
-    return "BEARISH";
-  }
-
-  return "NEUTRAL";
 }
 
 // ---------------------------------------------------------------------------
@@ -291,7 +233,8 @@ export default function CryptoAnalyzer() {
 
     try {
       // ---------------------------------------------------------------
-      // STEP 1: Fetch live market data
+      // STEP 1: Fetch live price card data (Binance, client-side only —
+      // purely cosmetic for the ticker card at the top of the page)
       // ---------------------------------------------------------------
 
       const data = await fetchLiveData(
@@ -300,167 +243,16 @@ export default function CryptoAnalyzer() {
       );
 
       setLiveData(data);
-
-      // ---------------------------------------------------------------
-      // STEP 2: Multi-timeframe confluence
-      // ---------------------------------------------------------------
-
-      const otherTfs = TIMEFRAMES.filter(
-        (tf) => tf !== timeframe
-      );
-
-      const otherCandles = await Promise.all(
-        otherTfs.map((tf) =>
-          fetchCandlesOnly(
-            pair,
-            BINANCE_INTERVALS[tf]
-          )
-        )
-      );
-
-      const biasMap: Record<string, Bias> = {
-        [timeframe]: quickBias(data.candles),
-      };
-
-      otherTfs.forEach((tf, i) => {
-        biasMap[tf] = quickBias(otherCandles[i]);
-      });
-
-      setMtfBias(
-        TIMEFRAMES.map((tf) => ({
-          tf,
-          bias: biasMap[tf],
-        }))
-      );
-
       setFetching(false);
 
       // ---------------------------------------------------------------
-      // STEP 3: Build detailed market context
-      // ---------------------------------------------------------------
-
-      const candleSummary = data.candles
-        .map(
-          (c, i) =>
-            `Candle ${i + 1}: O=${formatPrice(
-              c.open
-            )} H=${formatPrice(
-              c.high
-            )} L=${formatPrice(
-              c.low
-            )} C=${formatPrice(c.close)}`
-        )
-        .join("\n");
-
-      const closes = data.candles.map(
-        (c) => c.close
-      );
-
-      const sma10 =
-        closes.slice(-10).reduce(
-          (a, b) => a + b,
-          0
-        ) / 10;
-
-      const sma20 =
-        closes.slice(-20).reduce(
-          (a, b) => a + b,
-          0
-        ) / 20;
-
-      const recentHigh = Math.max(
-        ...data.candles
-          .slice(-10)
-          .map((c) => c.high)
-      );
-
-      const recentLow = Math.min(
-        ...data.candles
-          .slice(-10)
-          .map((c) => c.low)
-      );
-
-      const isNova =
-        selectedModel === "nova";
-
-      const novaFieldInstruction = isNova
-        ? `,
-  "novaInsight": "an advanced 3-4 paragraph deep-dive covering: volume profile and what it suggests about conviction behind the move, momentum divergence, key psychological price levels nearby, and 1-2 macro or on-chain factors a serious trader would watch for this asset right now"`
-        : "";
-
-      const prompt = `
-You are a professional crypto trading analyst.
-
-I will give you REAL live market data.
-
-Analyze the data and respond ONLY with valid, parseable JSON in this exact format.
-
-{
-  "trend": "BULLISH" or "BEARISH" or "NEUTRAL",
-  "confidence": a number 0-100 representing how strong/clear the signal is,
-  "indicators": ["short tag", "short tag", "..."],
-  "entry": "specific price level",
-  "stopLoss": "specific price level",
-  "takeProfit": "specific price level",
-  "riskReward": "e.g. 1:2.5",
-  "summary": "detailed 2-3 paragraph analysis covering current market structure, key support/resistance levels, momentum, and trade recommendation with reasoning"${novaFieldInstruction}
-}
-
-CRITICAL JSON FORMATTING RULES:
-
-- The entire response must be one valid JSON object.
-- Do not use markdown code fences.
-- Do not include commentary before or after the JSON.
-- Use \\n inside JSON strings for paragraph breaks.
-- Do not insert literal unescaped newlines inside JSON string values.
-
-LIVE MARKET DATA:
-
-Pair: ${pair.toUpperCase()}
-Timeframe: ${timeframe}
-
-Current Price: ${formatPrice(data.price)}
-24h Change: ${data.change24h.toFixed(2)}%
-24h High: ${formatPrice(data.high24h)}
-24h Low: ${formatPrice(data.low24h)}
-24h Volume: ${data.volume24h.toLocaleString()}
-
-SMA10: ${formatPrice(sma10)}
-SMA20: ${formatPrice(sma20)}
-
-Recent 10-Candle High: ${formatPrice(
-        recentHigh
-      )}
-
-Recent 10-Candle Low: ${formatPrice(
-        recentLow
-      )}
-
-SMA Trend:
-${
-  sma10 > sma20
-    ? "SMA10 above SMA20 (bullish signal)"
-    : "SMA10 below SMA20 (bearish signal)"
-}
-
-LAST 20 CANDLES:
-
-${candleSummary}
-
-Based on this REAL data:
-
-- Provide precise entry, stop loss, and take profit levels.
-- SL should be below recent support for longs.
-- SL should be above recent resistance for shorts.
-- TP should target the next key resistance/support level.
-- Calculate the risk/reward ratio accurately.
-- Set confidence honestly.
-- If signals conflict, use a lower confidence score.
-- Only use 80+ confidence when multiple indicators clearly agree.
-`;
-
-      // ---------------------------------------------------------------
-      // STEP 4: SEND TO DEDICATED CRYPTO BACKEND ENDPOINT
+      // STEP 2: SEND TO DEDICATED CRYPTO BACKEND ENDPOINT
+      //
+      // The backend does everything itself: fetches live Kraken OHLCV,
+      // computes real indicators (RSI/MACD/EMA/ATR/Bollinger), builds
+      // the multi-timeframe confluence, prompts Levi AI, validates the
+      // AI's JSON output, and returns one clean structured object.
+      // There is no separate "text to re-parse" step on this end.
       // ---------------------------------------------------------------
 
       const token =
@@ -485,7 +277,6 @@ Based on this REAL data:
             pair: pair.toUpperCase(),
             timeframe,
             model: selectedModel,
-            prompt,
           }),
         }
       );
@@ -500,126 +291,52 @@ Based on this REAL data:
         );
       }
 
-      const responseData =
-        await res.json();
+      const responseData = await res.json();
 
-      // Supports different possible backend response keys
-      const text =
-        responseData.response ||
-        responseData.analysis ||
-        responseData.result ||
-        responseData.content ||
-        "";
-
-      if (!text) {
-        throw new Error(
-          "The crypto analysis endpoint returned an empty response."
-        );
-      }
+      const isNova = selectedModel === "nova";
 
       // ---------------------------------------------------------------
-      // STEP 5: Parse AI JSON response
-      // ---------------------------------------------------------------
-
-      const fenceStripped = text
-        .replace(/```json\s*|```\s*/g, "")
-        .trim();
-
-      const jsonMatch =
-        fenceStripped.match(/\{[\s\S]*\}/);
-
-      if (!jsonMatch) {
-        throw new Error(
-          "Could not parse analysis"
-        );
-      }
-
-      let parsed: any;
-
-      try {
-        parsed = JSON.parse(
-          jsonMatch[0]
-        );
-      } catch {
-        // Fallback repair for literal control characters
-        let repaired = "";
-
-        let inString = false;
-        let prevChar = "";
-
-        for (const char of jsonMatch[0]) {
-          if (
-            char === '"' &&
-            prevChar !== "\\"
-          ) {
-            inString = !inString;
-          }
-
-          if (
-            inString &&
-            char === "\n"
-          ) {
-            repaired += "\\n";
-          } else if (
-            inString &&
-            char === "\r"
-          ) {
-            repaired += "\\r";
-          } else if (
-            inString &&
-            char === "\t"
-          ) {
-            repaired += "\\t";
-          } else {
-            repaired += char;
-          }
-
-          prevChar = char;
-        }
-
-        parsed = JSON.parse(
-          repaired
-        );
-      }
-
-      // ---------------------------------------------------------------
-      // STEP 6: Render analysis
+      // STEP 3: Render analysis directly from the backend's response
       // ---------------------------------------------------------------
 
       setAnalysis({
-        trend: parsed.trend,
+        trend: responseData.trend,
         confidence:
-          typeof parsed.confidence ===
-          "number"
-            ? parsed.confidence
+          typeof responseData.confidence === "number"
+            ? responseData.confidence
             : 50,
 
-        indicators:
-          Array.isArray(
-            parsed.indicators
-          )
-            ? parsed.indicators
-            : [],
+        indicators: Array.isArray(responseData.indicators)
+          ? responseData.indicators
+          : [],
 
-        entry: parsed.entry,
-        stopLoss: parsed.stopLoss,
-        takeProfit:
-          parsed.takeProfit,
-
-        riskReward:
-          parsed.riskReward,
-
-        summary:
-          parsed.summary,
+        entry: responseData.entry,
+        stopLoss: responseData.stopLoss,
+        takeProfit: responseData.takeProfit,
+        riskReward: responseData.riskReward,
+        summary: responseData.summary,
 
         novaInsight: isNova
-          ? parsed.novaInsight
+          ? responseData.novaInsight
           : undefined,
       });
 
-      setLastUpdated(
-        new Date()
-      );
+      // ---------------------------------------------------------------
+      // STEP 4: Multi-timeframe confluence — this comes straight from
+      // the backend's own indicator-based scoring (real RSI/MACD/EMA
+      // math per timeframe), not a rough client-side approximation.
+      // ---------------------------------------------------------------
+
+      if (responseData.mtfBias) {
+        setMtfBias(
+          TIMEFRAMES.map((tf) => ({
+            tf,
+            bias: (responseData.mtfBias[tf] || "NEUTRAL") as Bias,
+          }))
+        );
+      }
+
+      setLastUpdated(new Date());
 
     } catch (e: any) {
       setError(
@@ -2021,8 +1738,8 @@ Based on this REAL data:
                     "center",
                 }}
               >
-                ⚠ AI analysis using live
-                Binance data. Not financial
+                ⚠ AI analysis powered by live
+                market data. Not financial
                 advice. Always manage your
                 risk.
               </p>
