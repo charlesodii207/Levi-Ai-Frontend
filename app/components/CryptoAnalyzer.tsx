@@ -1072,6 +1072,10 @@ export default function CryptoAnalyzer() {
                 opacity: 1,
                 y: 0,
               }}
+              transition={{
+                duration: 0.4,
+                ease: "easeOut",
+              }}
               style={{
                 background: "#0D1117",
                 border:
@@ -1181,6 +1185,11 @@ export default function CryptoAnalyzer() {
               animate={{
                 opacity: 1,
                 y: 0,
+              }}
+              transition={{
+                duration: 0.4,
+                delay: 0.15,
+                ease: "easeOut",
               }}
               style={{
                 background: "#0D1117",
@@ -1294,6 +1303,8 @@ export default function CryptoAnalyzer() {
               }}
               transition={{
                 duration: 0.4,
+                delay: 0.3,
+                ease: "easeOut",
               }}
             >
               {/* Trend Banner */}
@@ -1533,7 +1544,20 @@ export default function CryptoAnalyzer() {
 
               {/* Key Levels */}
 
-              <div
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  y: 12,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  duration: 0.4,
+                  delay: 0.45,
+                  ease: "easeOut",
+                }}
                 style={{
                   display: "grid",
                   gridTemplateColumns:
@@ -1628,11 +1652,24 @@ export default function CryptoAnalyzer() {
                     </div>
                   )
                 )}
-              </div>
+              </motion.div>
 
               {/* Analysis Summary */}
 
-              <div
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  y: 12,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  duration: 0.4,
+                  delay: 0.55,
+                  ease: "easeOut",
+                }}
                 style={{
                   background:
                     "#0D1117",
@@ -1668,12 +1705,25 @@ export default function CryptoAnalyzer() {
                     }
                   </ReactMarkdown>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Nova Insight */}
 
               {analysis.novaInsight && (
-                <div
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: 12,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  transition={{
+                    duration: 0.4,
+                    delay: 0.65,
+                    ease: "easeOut",
+                  }}
                   style={{
                     background:
                       "linear-gradient(135deg, rgba(59,130,246,0.06), rgba(212,175,55,0.04))",
@@ -1726,7 +1776,7 @@ export default function CryptoAnalyzer() {
                       }
                     </ReactMarkdown>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               <p
