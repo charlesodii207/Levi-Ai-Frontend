@@ -34,6 +34,11 @@
   --markdown-td: #A8B8D8;
   --markdown-quote-text: #8B9CC4;
   --markdown-row-alt: rgba(255,255,255,0.02);
+
+  --header-bg: rgba(8,12,20,0.8);
+  --fade-gradient: #080C14;
+  --ambient-blue: rgba(0,87,255,0.08);
+  --ambient-gold: rgba(212,175,55,0.05);
 }
 
 [data-theme="light"] {
@@ -69,6 +74,11 @@
   --markdown-td: #3E4A63;
   --markdown-quote-text: #56638A;
   --markdown-row-alt: rgba(15,23,42,0.03);
+
+  --header-bg: rgba(247,248,252,0.8);
+  --fade-gradient: #F7F8FC;
+  --ambient-blue: rgba(0,87,255,0.05);
+  --ambient-gold: rgba(184,137,43,0.04);
 }
 
 * {

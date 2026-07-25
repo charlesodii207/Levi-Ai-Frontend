@@ -13,6 +13,7 @@ import CodeWorkspace from "./CodeWorkspace";
 import BusinessHub from "./BusinessHub";
 import WritingStudio from "./WritingStudio";
 import ResearchHub from "./ResearchHub";
+import ThemeToggle from "./ThemeToggle";
 import { streamMessage, getMessages } from "@/app/lib/api";
 import { isLoggedIn } from "@/app/lib/auth";
 import type { LeviModel } from "./PromptBox";
@@ -138,7 +139,7 @@ export default function ChatPage() {
   return (
     <div style={{
       width: "100vw", height: "100vh",
-      background: "#080C14",
+      background: "var(--bg-base)",
       display: "flex", overflow: "hidden",
     }}>
       <Sidebar
@@ -162,8 +163,8 @@ export default function ChatPage() {
         <div style={{
           position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
           background: `
-            radial-gradient(ellipse 60% 40% at 50% 0%, rgba(0,87,255,0.08) 0%, transparent 70%),
-            radial-gradient(ellipse 40% 30% at 80% 100%, rgba(212,175,55,0.05) 0%, transparent 60%)
+            radial-gradient(ellipse 60% 40% at 50% 0%, var(--ambient-blue) 0%, transparent 70%),
+            radial-gradient(ellipse 40% 30% at 80% 100%, var(--ambient-gold) 0%, transparent 60%)
           `,
         }} />
 
@@ -171,12 +172,12 @@ export default function ChatPage() {
         <div style={{
           flexShrink: 0,
           height: 52,
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 24px",
-          background: "rgba(8,12,20,0.8)",
+          background: "var(--header-bg)",
           backdropFilter: "blur(12px)",
           zIndex: 2,
         }}>
@@ -187,9 +188,9 @@ export default function ChatPage() {
               style={{
                 display: "none",
                 width: 34, height: 34, borderRadius: 9,
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "#8B9CC4", cursor: "pointer",
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)", cursor: "pointer",
                 alignItems: "center", justifyContent: "center",
                 flexShrink: 0,
                 position: "relative",
@@ -218,14 +219,15 @@ export default function ChatPage() {
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ThemeToggle />
             <button
               onClick={() => setVoiceModeOpen(true)}
               title="Voice mode"
               style={{
                 width: 34, height: 34, borderRadius: 9,
-                background: "rgba(59,130,246,0.08)",
-                border: "1px solid rgba(59,130,246,0.2)",
-                color: "#3B82F6", cursor: "pointer",
+                background: "var(--blue-dim)",
+                border: "1px solid var(--border-blue)",
+                color: "var(--blue-light)", cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
@@ -237,7 +239,7 @@ export default function ChatPage() {
                 background: "#22c55e",
                 boxShadow: "0 0 6px #22c55e",
               }} />
-              <span style={{ color: "#3D4F72", fontSize: 12 }}>Levi is online</span>
+              <span style={{ color: "var(--text-muted)", fontSize: 12 }}>Levi is online</span>
             </div>
           </div>
         </div>
@@ -302,10 +304,10 @@ export default function ChatPage() {
                     >
                       {currentMode.icon}
                     </motion.div>
-                    <p style={{ color: "#F0F4FF", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+                    <p style={{ color: "var(--text-primary)", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
                       {currentMode.label} Mode
                     </p>
-                    <p style={{ color: "#3D4F72", fontSize: 14 }}>
+                    <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
                       Levi is tuned for {currentMode.label.toLowerCase()} — ask anything
                     </p>
                   </>
@@ -343,7 +345,7 @@ export default function ChatPage() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.3 }}
-                      style={{ color: "#3D4F72", fontSize: 15, marginBottom: 40, letterSpacing: 0.3 }}
+                      style={{ color: "var(--text-muted)", fontSize: 15, marginBottom: 40, letterSpacing: 0.3 }}
                     >
                       Your intelligent AI assistant — built for excellence
                     </motion.p>
@@ -366,10 +368,10 @@ export default function ChatPage() {
                           onClick={() => handleSend(s.label)}
                           style={{
                             padding: "14px 18px",
-                            background: "rgba(13,20,32,0.8)",
-                            border: "1px solid rgba(255,255,255,0.07)",
+                            background: "var(--bg-surface)",
+                            border: "1px solid var(--border)",
                             borderRadius: 14,
-                            color: "#8B9CC4",
+                            color: "var(--text-secondary)",
                             fontSize: 13,
                             fontWeight: 500,
                             textAlign: "left",
@@ -381,14 +383,14 @@ export default function ChatPage() {
                             backdropFilter: "blur(8px)",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = "rgba(59,130,246,0.3)";
-                            e.currentTarget.style.color = "#F0F4FF";
-                            e.currentTarget.style.background = "rgba(0,87,255,0.08)";
+                            e.currentTarget.style.borderColor = "var(--border-blue)";
+                            e.currentTarget.style.color = "var(--text-primary)";
+                            e.currentTarget.style.background = "var(--blue-dim)";
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
-                            e.currentTarget.style.color = "#8B9CC4";
-                            e.currentTarget.style.background = "rgba(13,20,32,0.8)";
+                            e.currentTarget.style.borderColor = "var(--border)";
+                            e.currentTarget.style.color = "var(--text-secondary)";
+                            e.currentTarget.style.background = "var(--bg-surface)";
                           }}
                         >
                           <span style={{ fontSize: 18 }}>{s.icon}</span>
@@ -415,7 +417,7 @@ export default function ChatPage() {
               zIndex: 2,
               display: "flex",
               justifyContent: "center",
-              background: "linear-gradient(to top, #080C14 70%, transparent)",
+              background: "linear-gradient(to top, var(--fade-gradient) 70%, transparent)",
             }}>
               <div style={{ width: "100%", maxWidth: 760 }}>
                 <PromptBox
