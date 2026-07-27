@@ -227,7 +227,7 @@ export default function LandingPage() {
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         gap: 12,
       }}>
-        <img src="/logo.png" alt="Levi" style={{ height: 28, width: "auto", flexShrink: 0 }} />
+        <img src="/logolevi.png" alt="Levi" style={{ height: 28, width: "auto", flexShrink: 0 }} />
 
         <div className="nav-links-desktop" style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
@@ -1097,7 +1097,7 @@ export default function LandingPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         flexWrap: "wrap", gap: 12,
       }}>
-        <img src="/logo.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
+        <img src="/logolevi.png" alt="Levi" style={{ height: 22, width: "auto", opacity: 0.7 }} />
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
           {NAV_LINKS.map((link) => (
             <button
