@@ -525,7 +525,7 @@ export default function LandingPage() {
             pointerEvents: "none",
           }}>
             <img
-              src="/hero-preview.png"
+              src="/hero-preview.jpg"
               alt=""
               style={{ width: "100%", height: "auto", display: "block" }}
             />
@@ -542,7 +542,7 @@ export default function LandingPage() {
             zIndex: 1,
           }}>
             <img
-              src="/hero-preview.png"
+              src="/hero-preview.jpg"
               alt="Levi app preview"
               style={{ width: "100%", height: "auto", display: "block" }}
             />
