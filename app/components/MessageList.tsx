@@ -28,37 +28,14 @@ function stripMarkdownForSpeech(text: string): string {
 const COLLAPSE_THRESHOLD = 400; // characters — long user messages get truncated
 
 export default function MessageList({ messages }: { messages: Message[] }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isNearBottomRef = useRef(true); // tracks if user is scrolled near the bottom
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const [speechSupported, setSpeechSupported] = useState(true);
   const [expandedIndexes, setExpandedIndexes] = useState<Set<number>>(new Set());
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  // Track whether the user is near the bottom, so we don't yank them down
-  // if they've scrolled up to read earlier messages.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 120;
-    };
-
-    container.addEventListener("scroll", handleScroll);
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Auto-scroll only when the user is already near the bottom, and use
-  // instant scrolling (not "smooth") so rapid streaming updates don't
-  // stack animations and fight each other.
-  useEffect(() => {
-    if (isNearBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "auto" });
-    }
-  }, [messages]);
+  // No auto-scroll logic here on purpose — the view always stays wherever
+  // it naturally is (top, on load) and never jumps or snaps on its own.
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) {
@@ -309,8 +286,6 @@ export default function MessageList({ messages }: { messages: Message[] }) {
             </div>
           </motion.div>
         )}
-
-        <div ref={bottomRef} />
       </div>
     </div>
   );
