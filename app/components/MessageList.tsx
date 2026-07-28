@@ -29,13 +29,33 @@ const COLLAPSE_THRESHOLD = 400; // characters — long user messages get truncat
 
 export default function MessageList({ messages }: { messages: Message[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // One ref per rendered message, so we can scroll a specific message into view.
+  const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  // Tracks how many messages existed last render, so we only react to
+  // messages that were just added — not to streaming edits of an existing one.
+  const prevLengthRef = useRef(0);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const [speechSupported, setSpeechSupported] = useState(true);
   const [expandedIndexes, setExpandedIndexes] = useState<Set<number>>(new Set());
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  // No auto-scroll logic here on purpose — the view always stays wherever
-  // it naturally is (top, on load) and never jumps or snaps on its own.
+  // Scroll ONLY when a new user message is sent — bring the top of that
+  // message into view. Streaming updates to the assistant's reply don't
+  // change messages.length, so this effect won't fire for those, and the
+  // view stays put while the AI is typing.
+  useEffect(() => {
+    if (messages.length > prevLengthRef.current) {
+      // Find the most recent user message — it's the one that was just typed.
+      for (let i = messages.length - 1; i >= prevLengthRef.current - 1 && i >= 0; i--) {
+        if (messages[i].role === "user") {
+          const el = messageRefs.current[i];
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          break;
+        }
+      }
+    }
+    prevLengthRef.current = messages.length;
+  }, [messages.length]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) {
@@ -112,6 +132,9 @@ export default function MessageList({ messages }: { messages: Message[] }) {
           return (
             <motion.div
               key={i}
+              ref={(el) => {
+                messageRefs.current[i] = el;
+              }}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25 }}
