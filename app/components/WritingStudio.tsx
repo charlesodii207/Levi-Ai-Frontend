@@ -150,7 +150,15 @@ function ToneSelector({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
-function ResultPanel({ result, onRegenerate, loading }: { result: string; onRegenerate: () => void; loading: boolean }) {
+function ResultPanel({
+  result, onRegenerate, onContinue, loading, continuing,
+}: {
+  result: string;
+  onRegenerate: () => void;
+  onContinue: () => void;
+  loading: boolean;
+  continuing: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const wordCount = result.split(/\s+/).filter(Boolean).length;
   const charCount = result.length;
@@ -182,11 +190,24 @@ function ResultPanel({ result, onRegenerate, loading }: { result: string; onRege
           </span>
         </div>
         <div style={{ display: "flex", gap: 7 }}>
-          <button onClick={onRegenerate} disabled={loading}
+          <button onClick={onContinue} disabled={loading || continuing}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "5px 11px",
+              background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.3)",
+              borderRadius: 8, color: "#D4AF37", fontSize: 11,
+              cursor: (loading || continuing) ? "not-allowed" : "pointer",
+            }}>
+            {continuing
+              ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} />
+              : <PenLine size={11} />}
+            {continuing ? "Continuing..." : "Continue"}
+          </button>
+          <button onClick={onRegenerate} disabled={loading || continuing}
             style={{
               display: "flex", alignItems: "center", gap: 5, padding: "5px 11px",
               background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: 8, color: "#8B9CC4", fontSize: 11, cursor: "pointer",
+              borderRadius: 8, color: "#8B9CC4", fontSize: 11,
+              cursor: (loading || continuing) ? "not-allowed" : "pointer",
             }}>
             <RefreshCw size={11} /> Regenerate
           </button>
@@ -326,6 +347,7 @@ function ArticleTool({ onBack, model, onModelChange }: { onBack: () => void; mod
   const [tone, setTone] = useState("professional");
   const [wordCount, setWordCount] = useState("800 words");
   const [loading, setLoading] = useState(false);
+  const [continuing, setContinuing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   async function generate() {
@@ -346,6 +368,22 @@ Structure the article with:
 
 Make it feel human, original, and genuinely valuable. Not generic.`;
     try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
+  }
+
+  async function continueWriting() {
+    if (!result) return;
+    setContinuing(true);
+    const continuePrompt = `Here is a blog article in progress about "${topic}":
+
+---
+${result}
+---
+
+Continue the article from exactly where it leaves off. Expand on the ideas already introduced, add further sections, examples, or depth as appropriate. Keep the same tone (${tone}) and markdown formatting style. Do NOT repeat the headline or introduction, and do NOT restate anything already written — just continue seamlessly, as if it were always one article.`;
+    try {
+      const more = await callLevi(continuePrompt, model);
+      setResult((prev) => (prev ? `${prev}\n\n${more}` : more));
+    } catch {} finally { setContinuing(false); }
   }
 
   return (
@@ -390,7 +428,15 @@ Make it feel human, original, and genuinely valuable. Not generic.`;
           </motion.div>
         )}
         {loading && <LoadingState color="#3B82F6" label="article" />}
-        {result && !loading && <ResultPanel result={result} onRegenerate={generate} loading={loading} />}
+        {result && !loading && (
+          <ResultPanel
+            result={result}
+            onRegenerate={generate}
+            onContinue={continueWriting}
+            loading={loading}
+            continuing={continuing}
+          />
+        )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -403,6 +449,7 @@ function SocialTool({ onBack, model, onModelChange }: { onBack: () => void; mode
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState("casual");
   const [loading, setLoading] = useState(false);
+  const [continuing, setContinuing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   async function generate() {
@@ -421,6 +468,22 @@ Provide:
 
 Make it feel authentic, not corporate. Optimize for maximum engagement on ${platform.label}. Keep within the character limit.`;
     try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
+  }
+
+  async function continueWriting() {
+    if (!result) return;
+    setContinuing(true);
+    const continuePrompt = `Here is a ${platform.label} post already drafted about "${topic}":
+
+---
+${result}
+---
+
+Generate an ALTERNATE version or a follow-up post idea (e.g. a part 2, a different angle, or a companion post) that builds on the same topic and tone (${tone}). Keep it optimized for ${platform.label} (character limit: ${platform.limit}). Clearly separate it from the content above — do not repeat the original caption or hashtags verbatim.`;
+    try {
+      const more = await callLevi(continuePrompt, model);
+      setResult((prev) => (prev ? `${prev}\n\n---\n\n${more}` : more));
+    } catch {} finally { setContinuing(false); }
   }
 
   return (
@@ -476,7 +539,15 @@ Make it feel authentic, not corporate. Optimize for maximum engagement on ${plat
           </motion.div>
         )}
         {loading && <LoadingState color="#A855F7" label="post" />}
-        {result && !loading && <ResultPanel result={result} onRegenerate={generate} loading={loading} />}
+        {result && !loading && (
+          <ResultPanel
+            result={result}
+            onRegenerate={generate}
+            onContinue={continueWriting}
+            loading={loading}
+            continuing={continuing}
+          />
+        )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -490,6 +561,7 @@ function EmailTool({ onBack, model, onModelChange }: { onBack: () => void; model
   const [recipient, setRecipient] = useState("");
   const [tone, setTone] = useState("professional");
   const [loading, setLoading] = useState(false);
+  const [continuing, setContinuing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   async function generate() {
@@ -510,6 +582,22 @@ Write the complete email body — greeting, opening hook, main message, value pr
 
 Make it feel personal and human, not like a template. It should be persuasive without being pushy. Optimize for high open rates and responses.`;
     try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
+  }
+
+  async function continueWriting() {
+    if (!result) return;
+    setContinuing(true);
+    const continuePrompt = `Here is a ${emailType} email already drafted:
+
+---
+${result}
+---
+
+Since this email already contains a complete message, write a natural FOLLOW-UP email that could be sent a few days later if there's no response. Keep it brief, keep the same tone (${tone}) and recipient context (${recipient || "the same recipient"}), and reference the original email naturally without repeating it in full. Provide subject line + body, clearly separated from the original above.`;
+    try {
+      const more = await callLevi(continuePrompt, model);
+      setResult((prev) => (prev ? `${prev}\n\n---\n\n${more}` : more));
+    } catch {} finally { setContinuing(false); }
   }
 
   return (
@@ -566,7 +654,15 @@ Make it feel personal and human, not like a template. It should be persuasive wi
           </motion.div>
         )}
         {loading && <LoadingState color="#22C55E" label="email" />}
-        {result && !loading && <ResultPanel result={result} onRegenerate={generate} loading={loading} />}
+        {result && !loading && (
+          <ResultPanel
+            result={result}
+            onRegenerate={generate}
+            onContinue={continueWriting}
+            loading={loading}
+            continuing={continuing}
+          />
+        )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -580,6 +676,7 @@ function CreativeTool({ onBack, model, onModelChange }: { onBack: () => void; mo
   const [characters, setCharacters] = useState("");
   const [mood, setMood] = useState("");
   const [loading, setLoading] = useState(false);
+  const [continuing, setContinuing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   async function generate() {
@@ -602,6 +699,22 @@ Guidelines:
 
 Make it exceptional. This should feel like it was written by a talented human writer, not an AI.`;
     try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
+  }
+
+  async function continueWriting() {
+    if (!result) return;
+    setContinuing(true);
+    const continuePrompt = `Here is a ${creativeType.toLowerCase() || "piece"} in progress:
+
+---
+${result}
+---
+
+Continue writing from exactly where this leaves off. Keep the same characters, tone, style, and voice established above. Do not repeat, summarize, or restate anything already written — just write the next part. Do not add labels like "Continued:" or "Part 2" — pick up seamlessly as if it were always one continuous piece.`;
+    try {
+      const more = await callLevi(continuePrompt, model);
+      setResult((prev) => (prev ? `${prev}\n\n${more}` : more));
+    } catch {} finally { setContinuing(false); }
   }
 
   return (
@@ -661,7 +774,15 @@ Make it exceptional. This should feel like it was written by a talented human wr
           </motion.div>
         )}
         {loading && <LoadingState color="#D4AF37" label={creativeType.toLowerCase() || "piece"} />}
-        {result && !loading && <ResultPanel result={result} onRegenerate={generate} loading={loading} />}
+        {result && !loading && (
+          <ResultPanel
+            result={result}
+            onRegenerate={generate}
+            onContinue={continueWriting}
+            loading={loading}
+            continuing={continuing}
+          />
+        )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
