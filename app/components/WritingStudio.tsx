@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import {
   PenLine, ArrowLeft, Loader2, Copy, Check,
   RefreshCw, Download, FileText, Share2,
-  Mail, Feather, Hash, ChevronDown, Zap, Sparkles,
+  Mail, Feather, Hash, ChevronDown, Zap, Sparkles, Send, MessageCircle,
 } from "lucide-react";
 import type { LeviModel } from "./PromptBox";
 
@@ -150,14 +150,136 @@ function ToneSelector({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
+type EditMsg = { role: "user" | "assistant"; content: string };
+
+function EditChat({
+  result, setResult, model, pieceLabel,
+}: {
+  result: string;
+  setResult: (r: string) => void;
+  model: LeviModel;
+  pieceLabel: string;
+}) {
+  const [messages, setMessages] = useState<EditMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function sendEdit() {
+    const instruction = input.trim();
+    if (!instruction || sending) return;
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", content: instruction }]);
+    setSending(true);
+
+    const prompt = `Here is the current ${pieceLabel}:
+
+---
+${result}
+---
+
+The user has requested this edit: "${instruction}"
+
+Apply the requested change to the piece above. Output the FULL updated ${pieceLabel} with the edit applied — not a diff, not just the changed section, and no commentary or explanation before or after. Just the complete, ready-to-use updated piece, preserving everything that wasn't asked to change.`;
+
+    try {
+      const updated = await callLevi(prompt, model);
+      setResult(updated);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Done — updated above." }]);
+    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Try again?" }]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div style={{
+      marginTop: 14,
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 14,
+      background: "rgba(255,255,255,0.02)",
+      overflow: "hidden",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 7,
+        padding: "10px 14px",
+        borderBottom: messages.length ? "1px solid rgba(255,255,255,0.06)" : "none",
+      }}>
+        <MessageCircle size={13} color="#6B7280" />
+        <span style={{ color: "#6B7280", fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
+          ASK FOR AN EDIT
+        </span>
+      </div>
+
+      {messages.length > 0 && (
+        <div style={{
+          maxHeight: 180, overflowY: "auto", padding: "10px 14px",
+          display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{
+              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+              background: m.role === "user" ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.05)",
+              color: m.role === "user" ? "#93C5FD" : "#8B9CC4",
+              padding: "6px 12px", borderRadius: 10, fontSize: 12, maxWidth: "85%",
+              lineHeight: 1.5,
+            }}>
+              {m.content}
+            </div>
+          ))}
+          {sending && (
+            <div style={{
+              alignSelf: "flex-start", color: "#6B7280", fontSize: 12,
+              display: "flex", alignItems: "center", gap: 6, padding: "6px 12px",
+            }}>
+              <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> Editing...
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, padding: 10 }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") sendEdit(); }}
+          placeholder="e.g. 'make the chorus shorter' or 'give it a happier ending'"
+          disabled={sending}
+          style={{
+            flex: 1, background: "rgba(6,10,16,0.8)",
+            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
+            padding: "9px 12px", color: "#F0F4FF", fontSize: 13,
+            outline: "none", fontFamily: "Inter, sans-serif",
+          }}
+        />
+        <button onClick={sendEdit} disabled={sending || !input.trim()}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 36, flexShrink: 0,
+            background: (sending || !input.trim()) ? "rgba(255,255,255,0.04)" : "rgba(59,130,246,0.15)",
+            border: `1px solid ${(sending || !input.trim()) ? "rgba(255,255,255,0.07)" : "rgba(59,130,246,0.3)"}`,
+            borderRadius: 8,
+            color: (sending || !input.trim()) ? "#3D4F72" : "#3B82F6",
+            cursor: (sending || !input.trim()) ? "not-allowed" : "pointer",
+          }}>
+          {sending ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Send size={14} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ResultPanel({
-  result, onRegenerate, onContinue, loading, continuing,
+  result, onRegenerate, onContinue, loading, continuing, setResult, model, pieceLabel,
 }: {
   result: string;
   onRegenerate: () => void;
   onContinue: () => void;
   loading: boolean;
   continuing: boolean;
+  setResult: (r: string) => void;
+  model: LeviModel;
+  pieceLabel: string;
 }) {
   const [copied, setCopied] = useState(false);
   const wordCount = result.split(/\s+/).filter(Boolean).length;
@@ -240,6 +362,8 @@ function ResultPanel({
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
         </div>
       </div>
+
+      <EditChat result={result} setResult={setResult} model={model} pieceLabel={pieceLabel} />
     </motion.div>
   );
 }
@@ -435,6 +559,9 @@ Continue the article from exactly where it leaves off. Expand on the ideas alrea
             onContinue={continueWriting}
             loading={loading}
             continuing={continuing}
+            setResult={setResult}
+            model={model}
+            pieceLabel="article"
           />
         )}
       </div>
@@ -546,6 +673,9 @@ Generate an ALTERNATE version or a follow-up post idea (e.g. a part 2, a differe
             onContinue={continueWriting}
             loading={loading}
             continuing={continuing}
+            setResult={setResult}
+            model={model}
+            pieceLabel={`${platform.label} post`}
           />
         )}
       </div>
@@ -661,6 +791,9 @@ Since this email already contains a complete message, write a natural FOLLOW-UP 
             onContinue={continueWriting}
             loading={loading}
             continuing={continuing}
+            setResult={setResult}
+            model={model}
+            pieceLabel="email"
           />
         )}
       </div>
@@ -695,9 +828,11 @@ Guidelines:
 - For poems: use rhythm and imagery
 - For stories: have a clear arc (beginning, middle, end)
 - For speeches: be inspiring and memorable
-- For rap/song lyrics: use rhyme schemes and flow
+- For rap/song lyrics: use rhyme schemes, flow, and section labels like [Verse 1], [Chorus], [Bridge], [Outro]
 
-Make it exceptional. This should feel like it was written by a talented human writer, not an AI.`;
+Make it exceptional. This should feel like it was written by a talented human writer, not an AI.
+
+IMPORTANT: Output ONLY the piece itself. Do not include any preamble ("Here's a..."), title explanation, or closing commentary/analysis about the piece afterward.`;
     try { setResult(await callLevi(prompt, model)); } catch {} finally { setLoading(false); }
   }
 
@@ -710,7 +845,7 @@ Make it exceptional. This should feel like it was written by a talented human wr
 ${result}
 ---
 
-Continue writing from exactly where this leaves off. Keep the same characters, tone, style, and voice established above. Do not repeat, summarize, or restate anything already written — just write the next part. Do not add labels like "Continued:" or "Part 2" — pick up seamlessly as if it were always one continuous piece.`;
+Continue writing from exactly where this leaves off. Keep the same characters, tone, style, voice, and structural format established above (e.g. if it uses [Verse]/[Chorus]/[Bridge] labels, continue using them consistently and correctly numbered). Do not repeat, summarize, or restate anything already written, and do not add any commentary, analysis, or explanation about the piece — output only the continuation itself, picking up seamlessly as if it were always one continuous piece.`;
     try {
       const more = await callLevi(continuePrompt, model);
       setResult((prev) => (prev ? `${prev}\n\n${more}` : more));
@@ -781,6 +916,9 @@ Continue writing from exactly where this leaves off. Keep the same characters, t
             onContinue={continueWriting}
             loading={loading}
             continuing={continuing}
+            setResult={setResult}
+            model={model}
+            pieceLabel={creativeType.toLowerCase() || "piece"}
           />
         )}
       </div>
