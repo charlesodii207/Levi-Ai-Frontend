@@ -165,15 +165,70 @@ function CodeEditChat({
 ${currentOutput}
 ---
 ${referenceBlock}
-The user has requested this change: "${instruction}"
+The user said: "${instruction}"
 
-Apply the requested change. Output the FULL updated ${pieceLabel} result (including any code blocks, using markdown fenced code blocks) — not a diff, not just the changed part, and no commentary before or after. Just the complete, ready-to-use updated version.`;
+Decide whether this is:
+(a) a QUESTION — the user wants an explanation or information, not a change to the result, OR
+(b) an EDIT REQUEST — the user wants the result actually modified.
+
+- If it's a QUESTION: reply conversationally with a clear, concise answer. Start your reply with "ANSWER:" followed by the answer. Do not repeat or rewrite the full result.
+- If it's an EDIT REQUEST: apply the requested change and output the FULL updated ${pieceLabel} result (including any code blocks, in markdown fenced code blocks). Start your reply with "UPDATE:" followed immediately by the complete updated result — no commentary before or after.
+
+Respond with ONLY one of these two formats, nothing else.`;
+
+    // We can't know which branch the model picked until enough of the
+    // response has streamed in, so we buffer briefly, detect the prefix,
+    // then route subsequent chunks to either a chat bubble (ANSWER) or
+    // the output panel (UPDATE) — stripping the marker either way.
+    // (Tracked via an object, not plain `let`s — TS's flow analysis doesn't
+    // narrow variables reassigned inside a nested closure, which otherwise
+    // trips a false "types have no overlap" error on the checks below.)
+    const state: { mode: "pending" | "answer" | "update"; answerMsgIndex: number } = {
+      mode: "pending",
+      answerMsgIndex: -1,
+    };
 
     try {
       await callLeviStream(prompt, model, (textSoFar) => {
-        setOutput(textSoFar);
+        if (state.mode === "pending") {
+          if (textSoFar.startsWith("ANSWER:")) {
+            state.mode = "answer";
+            setMessages((prev) => {
+              const next = [...prev, { role: "assistant" as const, content: textSoFar.slice(7).trimStart() }];
+              state.answerMsgIndex = next.length - 1;
+              return next;
+            });
+          } else if (textSoFar.startsWith("UPDATE:")) {
+            state.mode = "update";
+            setOutput(textSoFar.slice(7).trimStart());
+          } else if (textSoFar.length > 15) {
+            // Fallback if the model ever skips the marker — treat as an update,
+            // matching the old behavior rather than silently doing nothing.
+            state.mode = "update";
+            setOutput(textSoFar);
+          }
+          return;
+        }
+
+        if (state.mode === "answer") {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[state.answerMsgIndex] = { role: "assistant", content: textSoFar.replace(/^ANSWER:\s*/, "") };
+            return next;
+          });
+        } else {
+          setOutput(textSoFar.replace(/^UPDATE:\s*/, ""));
+        }
       });
-      setMessages((prev) => [...prev, { role: "assistant", content: "Done — updated above." }]);
+
+      // Only add a confirmation bubble for edits — for answers, the
+      // streamed text already ended up in the chat as its own message.
+      if (state.mode === "update") {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Done — updated above." }]);
+      } else if (state.mode === "pending") {
+        // Response was too short to hit either branch — show whatever came back.
+        setMessages((prev) => [...prev, { role: "assistant", content: "Got an empty response — try rephrasing?" }]);
+      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -207,7 +262,7 @@ Apply the requested change. Output the FULL updated ${pieceLabel} result (includ
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <MessageCircle size={13} color="#6B7280" />
           <span style={{ color: "#6B7280", fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
-            ASK FOR A CHANGE
+            ASK LEVI
           </span>
         </div>
         {onApplyToEditor && hasCodeBlock && (
@@ -254,7 +309,7 @@ Apply the requested change. Output the FULL updated ${pieceLabel} result (includ
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") sendEdit(); }}
-          placeholder="e.g. 'add error handling' or 'make this recursive'"
+          placeholder="Ask a question, or request a change (e.g. 'add error handling')"
           disabled={sending}
           style={{
             flex: 1, background: "rgba(6,10,16,0.8)",
