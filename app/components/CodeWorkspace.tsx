@@ -31,6 +31,95 @@ const MODEL_OPTIONS: { id: LeviModel; label: string }[] = [
   { id: "nova", label: "Levi Nova" },
 ];
 
+// ---------------------------------------------------------------------------
+// Streaming client — matches the backend's exact /chat/stream event shape:
+//   {"type": "meta", "conversation_id": ..., "title": ..., "model": ...}
+//   {"type": "chunk", "text": "..."}
+//   {"type": "title", "title": "..."}   (only on the first message)
+//   {"type": "done"}
+// ---------------------------------------------------------------------------
+
+type StreamEvent =
+  | { type: "meta"; conversation_id: number; title: string; model: string }
+  | { type: "chunk"; text: string }
+  | { type: "title"; title: string }
+  | { type: "error"; message: string }
+  | { type: "done" };
+
+async function callLeviStream(
+  message: string,
+  model: LeviModel,
+  onChunk: (textSoFar: string) => void
+): Promise<string> {
+  const token = localStorage.getItem("levi_token");
+  const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ message, model }),
+  });
+
+  if (!res.ok) {
+    // e.g. 429 from check_and_consume_activity — FastAPI returns
+    // {"detail": "Daily limit reached"} before any streaming starts.
+    let detail = `Request failed (${res.status})`;
+    try {
+      const errBody = await res.json();
+      if (errBody?.detail) detail = errBody.detail;
+    } catch {
+      // body wasn't JSON — keep the generic status message
+    }
+    throw new Error(detail);
+  }
+
+  if (!res.body) throw new Error("No response body — streaming not supported here");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || ""; // last item may be incomplete — keep for next read
+
+    for (const line of events) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (!payload) continue;
+
+      try {
+        const parsed: StreamEvent = JSON.parse(payload);
+        if (parsed.type === "chunk") {
+          fullText += parsed.text;
+          onChunk(fullText);
+        } else if (parsed.type === "error") {
+          // Mid-stream failure (provider outage, timeout, etc.) — surface
+          // the real reason instead of quietly returning a cut-off reply.
+          throw new Error(parsed.message || "Generation failed. Please try again.");
+        }
+        // "meta" / "title" are available here if you later want to track
+        // conversation_id or an auto-generated title in state.
+      } catch (err) {
+        if (err instanceof Error && err.message !== payload) {
+          // A genuine thrown error (not a JSON.parse failure) — rethrow
+          // so it propagates out of callLeviStream to the caller.
+          throw err;
+        }
+        // Otherwise: incomplete JSON mid-chunk — safe to ignore, completes on next read
+      }
+    }
+  }
+
+  return fullText;
+}
+
 function ModelSelector({ value, onChange }: { value: LeviModel; onChange: (m: LeviModel) => void }) {
   return (
     <div style={{
@@ -320,7 +409,7 @@ export default function CodeWorkspace() {
     setError("");
     setActiveAction(actionId);
     setLoading(true);
-    setResult(null);
+    setResult(""); // empty string, not null — lets the output panel render as soon as text starts
 
     const prompts: Record<string, string> = {
       explain: `Explain this ${language} code clearly and concisely. Break it down step by step, explain what each part does, and summarize the overall purpose.\n\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``,
@@ -332,19 +421,13 @@ export default function CodeWorkspace() {
     };
 
     try {
-      const token = localStorage.getItem("levi_token");
-      const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message: prompts[actionId], model }),
+      await callLeviStream(prompts[actionId], model, (textSoFar) => {
+        setLoading(false); // hide the spinner the moment the first chunk lands
+        setResult(textSoFar);
       });
-      const data = await res.json();
-      setResult(data.response || "No response received.");
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setResult(null);
     } finally {
       setLoading(false);
     }
@@ -356,25 +439,21 @@ export default function CodeWorkspace() {
     setError("");
     setActiveAction("custom");
     setLoading(true);
-    setResult(null);
+    setResult("");
 
     const prompt = `${customPrompt}\n\nHere is the ${language} code:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+    const askedPrompt = customPrompt;
+    setCustomPrompt(""); // clear input immediately, same as before
 
     try {
-      const token = localStorage.getItem("levi_token");
-      const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message: prompt, model }),
+      await callLeviStream(prompt, model, (textSoFar) => {
+        setLoading(false);
+        setResult(textSoFar);
       });
-      const data = await res.json();
-      setResult(data.response || "No response received.");
-      setCustomPrompt("");
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setResult(null);
+      setCustomPrompt(askedPrompt); // restore input so they can retry
     } finally {
       setLoading(false);
     }
@@ -384,24 +463,18 @@ export default function CodeWorkspace() {
     if (!buildPrompt.trim()) { setBuildError("Describe what you want Levi to build."); return; }
     setBuildError("");
     setBuildLoading(true);
-    setBuildResult(null);
+    setBuildResult("");
 
     const prompt = `Write complete, working ${buildLanguage} code for the following request. Return the full code in a single fenced code block, followed by a short explanation of how it works.\n\nRequest: ${buildPrompt}`;
 
     try {
-      const token = localStorage.getItem("levi_token");
-      const res = await fetch("https://levi-ai-1ug2.onrender.com/chat/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message: prompt, model }),
+      await callLeviStream(prompt, model, (textSoFar) => {
+        setBuildLoading(false);
+        setBuildResult(textSoFar);
       });
-      const data = await res.json();
-      setBuildResult(data.response || "No response received.");
-    } catch {
-      setBuildError("Something went wrong. Please try again.");
+    } catch (err) {
+      setBuildError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setBuildResult(null);
     } finally {
       setBuildLoading(false);
     }
