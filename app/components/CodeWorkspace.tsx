@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import {
   Code2, Bug, Zap, RefreshCw, TestTube, MessageSquare,
   Copy, Check, Loader2, ChevronDown, FileCode, Play,
-  FolderInput, Wand2, ArrowLeft, Sparkles,
+  FolderInput, Wand2, ArrowLeft, Sparkles, Send, MessageCircle,
 } from "lucide-react";
 import type { LeviModel } from "./PromptBox";
 
@@ -118,6 +118,166 @@ async function callLeviStream(
   }
 
   return fullText;
+}
+
+// ---------------------------------------------------------------------------
+// Conversational edit chat — sits below any AI output. Lets the user ask
+// for changes ("add error handling", "make this async") instead of only
+// having fixed action buttons. Streams the revised result back in, and
+// offers to pull any code block from the result straight into the editor.
+// ---------------------------------------------------------------------------
+
+type EditMsg = { role: "user" | "assistant"; content: string };
+
+function extractFirstCodeBlock(text: string): string | null {
+  const match = text.match(/```[\w-]*\n([\s\S]*?)```/);
+  return match ? match[1].trim() : null;
+}
+
+function CodeEditChat({
+  currentOutput, setOutput, contextCode, model, pieceLabel, onApplyToEditor,
+}: {
+  currentOutput: string;
+  setOutput: (v: string) => void;
+  contextCode?: string;
+  model: LeviModel;
+  pieceLabel: string;
+  onApplyToEditor?: (code: string) => void;
+}) {
+  const [messages, setMessages] = useState<EditMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function sendEdit() {
+    const instruction = input.trim();
+    if (!instruction || sending) return;
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", content: instruction }]);
+    setSending(true);
+
+    const referenceBlock = contextCode
+      ? `\nFor reference, this was generated from the following original code:\n\n\`\`\`\n${contextCode}\n\`\`\`\n`
+      : "";
+
+    const prompt = `Here is the current ${pieceLabel} result:
+
+---
+${currentOutput}
+---
+${referenceBlock}
+The user has requested this change: "${instruction}"
+
+Apply the requested change. Output the FULL updated ${pieceLabel} result (including any code blocks, using markdown fenced code blocks) — not a diff, not just the changed part, and no commentary before or after. Just the complete, ready-to-use updated version.`;
+
+    try {
+      await callLeviStream(prompt, model, (textSoFar) => {
+        setOutput(textSoFar);
+      });
+      setMessages((prev) => [...prev, { role: "assistant", content: "Done — updated above." }]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: err instanceof Error ? err.message : "Something went wrong. Try again?" },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function applyCode() {
+    const code = extractFirstCodeBlock(currentOutput);
+    if (code && onApplyToEditor) onApplyToEditor(code);
+  }
+
+  const hasCodeBlock = extractFirstCodeBlock(currentOutput) !== null;
+
+  return (
+    <div style={{
+      marginTop: 14,
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 12,
+      background: "rgba(255,255,255,0.02)",
+      overflow: "hidden",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "9px 13px",
+        borderBottom: messages.length ? "1px solid rgba(255,255,255,0.06)" : "none",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <MessageCircle size={13} color="#6B7280" />
+          <span style={{ color: "#6B7280", fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>
+            ASK FOR A CHANGE
+          </span>
+        </div>
+        {onApplyToEditor && hasCodeBlock && (
+          <button onClick={applyCode}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "4px 9px",
+              background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
+              borderRadius: 7, color: "#3B82F6", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
+            }}>
+            <FolderInput size={10} /> Apply to Editor
+          </button>
+        )}
+      </div>
+
+      {messages.length > 0 && (
+        <div style={{
+          maxHeight: 160, overflowY: "auto", padding: "9px 13px",
+          display: "flex", flexDirection: "column", gap: 7,
+        }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{
+              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+              background: m.role === "user" ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.05)",
+              color: m.role === "user" ? "#93C5FD" : "#8B9CC4",
+              padding: "6px 11px", borderRadius: 9, fontSize: 11.5, maxWidth: "85%",
+              lineHeight: 1.5,
+            }}>
+              {m.content}
+            </div>
+          ))}
+          {sending && (
+            <div style={{
+              alignSelf: "flex-start", color: "#6B7280", fontSize: 11.5,
+              display: "flex", alignItems: "center", gap: 6, padding: "6px 11px",
+            }}>
+              <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> Applying edit...
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 7, padding: 9 }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") sendEdit(); }}
+          placeholder="e.g. 'add error handling' or 'make this recursive'"
+          disabled={sending}
+          style={{
+            flex: 1, background: "rgba(6,10,16,0.8)",
+            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
+            padding: "8px 11px", color: "#F0F4FF", fontSize: 12.5,
+            outline: "none", fontFamily: "Inter, sans-serif",
+          }}
+        />
+        <button onClick={sendEdit} disabled={sending || !input.trim()}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 34, flexShrink: 0,
+            background: (sending || !input.trim()) ? "rgba(255,255,255,0.04)" : "rgba(59,130,246,0.15)",
+            border: `1px solid ${(sending || !input.trim()) ? "rgba(255,255,255,0.07)" : "rgba(59,130,246,0.3)"}`,
+            borderRadius: 8,
+            color: (sending || !input.trim()) ? "#3D4F72" : "#3B82F6",
+            cursor: (sending || !input.trim()) ? "not-allowed" : "pointer",
+          }}>
+          {sending ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Send size={13} />}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function ModelSelector({ value, onChange }: { value: LeviModel; onChange: (m: LeviModel) => void }) {
@@ -499,6 +659,12 @@ export default function CodeWorkspace() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function applyResultToEditor(extractedCode: string) {
+    setCode(extractedCode);
+    const detected = detectLanguage(extractedCode);
+    if (detected) { setLanguage(detected); setLangAutoDetected(true); }
+  }
+
   const currentAction = ACTIONS.find((a) => a.id === activeAction);
 
   // -------------------------------------------------------------------------
@@ -809,11 +975,26 @@ export default function CodeWorkspace() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="markdown-body"
                 >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {buildResult}
-                  </ReactMarkdown>
+                  <div className="markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {buildResult}
+                    </ReactMarkdown>
+                  </div>
+                  <CodeEditChat
+                    currentOutput={buildResult}
+                    setOutput={setBuildResult}
+                    model={model}
+                    pieceLabel="generated code"
+                    onApplyToEditor={(extractedCode) => {
+                      setCode(extractedCode);
+                      const detected = detectLanguage(extractedCode) || buildLanguage;
+                      setLanguage(detected);
+                      setView("have-code");
+                      setResult(null);
+                      setActiveAction(null);
+                    }}
+                  />
                 </motion.div>
               )}
             </div>
@@ -1176,11 +1357,20 @@ export default function CodeWorkspace() {
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="markdown-body"
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {result}
-                </ReactMarkdown>
+                <div className="markdown-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {result}
+                  </ReactMarkdown>
+                </div>
+                <CodeEditChat
+                  currentOutput={result}
+                  setOutput={setResult}
+                  contextCode={code}
+                  model={model}
+                  pieceLabel={currentAction ? currentAction.label.toLowerCase() : "result"}
+                  onApplyToEditor={applyResultToEditor}
+                />
               </motion.div>
             )}
           </div>
