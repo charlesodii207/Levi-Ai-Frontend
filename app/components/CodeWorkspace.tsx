@@ -335,6 +335,242 @@ Respond with ONLY one of these two formats, nothing else.`;
   );
 }
 
+// ---------------------------------------------------------------------------
+// Unified chat for the "Have Code" view — merges what used to be two separate
+// boxes: before any result exists, sending a message asks a fresh question
+// about the pasted code (like the old "Ask anything" bar, writing straight
+// into the main output panel). Once a result exists, it switches into the
+// same ANSWER/UPDATE edit-chat behavior as CodeEditChat, scoped to that result.
+// ---------------------------------------------------------------------------
+
+function CodeChat({
+  code, language, result, setResult, model, pieceLabel,
+  mainLoading, setMainLoading, setActiveAction, setError, onApplyToEditor,
+}: {
+  code: string;
+  language: string;
+  result: string | null;
+  setResult: (v: string | null) => void;
+  model: LeviModel;
+  pieceLabel: string;
+  mainLoading: boolean;
+  setMainLoading: (v: boolean) => void;
+  setActiveAction: (id: string | null) => void;
+  setError: (msg: string) => void;
+  onApplyToEditor: (code: string) => void;
+}) {
+  const [messages, setMessages] = useState<EditMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const hasResult = result !== null && result !== "";
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || sending || mainLoading) return;
+    if (!code.trim()) { setError("Paste your code first."); return; }
+    setError("");
+    setInput("");
+
+    if (!hasResult) {
+      // No result yet — same behavior as the old "Ask anything" bar:
+      // generates a brand-new result straight into the main output panel.
+      setActiveAction("custom");
+      setMainLoading(true);
+      setResult("");
+      const prompt = `${text}\n\nHere is the ${language} code:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+      try {
+        await callLeviStream(prompt, model, (textSoFar) => {
+          setMainLoading(false);
+          setResult(textSoFar);
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+        setResult(null);
+      } finally {
+        setMainLoading(false);
+      }
+      return;
+    }
+
+    // A result already exists — behave like the edit/question chat:
+    // let the model decide whether this is a question or an edit request.
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setSending(true);
+
+    const prompt = `Here is the current ${pieceLabel} result:
+
+---
+${result}
+---
+
+For reference, this was generated from the following original code:
+
+\`\`\`
+${code}
+\`\`\`
+
+The user said: "${text}"
+
+Decide whether this is:
+(a) a QUESTION — the user wants an explanation or information, not a change to the result, OR
+(b) an EDIT REQUEST — the user wants the result actually modified.
+
+- If it's a QUESTION: reply conversationally with a clear, concise answer. Start your reply with "ANSWER:" followed by the answer. Do not repeat or rewrite the full result.
+- If it's an EDIT REQUEST: apply the requested change and output the FULL updated ${pieceLabel} result (including any code blocks, in markdown fenced code blocks). Start your reply with "UPDATE:" followed immediately by the complete updated result — no commentary before or after.
+
+Respond with ONLY one of these two formats, nothing else.`;
+
+    const state: { mode: "pending" | "answer" | "update"; answerMsgIndex: number } = {
+      mode: "pending",
+      answerMsgIndex: -1,
+    };
+
+    try {
+      await callLeviStream(prompt, model, (textSoFar) => {
+        if (state.mode === "pending") {
+          if (textSoFar.startsWith("ANSWER:")) {
+            state.mode = "answer";
+            setMessages((prev) => {
+              const next = [...prev, { role: "assistant" as const, content: textSoFar.slice(7).trimStart() }];
+              state.answerMsgIndex = next.length - 1;
+              return next;
+            });
+          } else if (textSoFar.startsWith("UPDATE:")) {
+            state.mode = "update";
+            setResult(textSoFar.slice(7).trimStart());
+          } else if (textSoFar.length > 15) {
+            state.mode = "update";
+            setResult(textSoFar);
+          }
+          return;
+        }
+
+        if (state.mode === "answer") {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[state.answerMsgIndex] = { role: "assistant", content: textSoFar.replace(/^ANSWER:\s*/, "") };
+            return next;
+          });
+        } else {
+          setResult(textSoFar.replace(/^UPDATE:\s*/, ""));
+        }
+      });
+
+      if (state.mode === "update") {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Done — updated above." }]);
+      } else if (state.mode === "pending") {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Got an empty response — try rephrasing?" }]);
+      }
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: err instanceof Error ? err.message : "Something went wrong. Try again?" },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function applyCode() {
+    if (!result) return;
+    const extracted = extractFirstCodeBlock(result);
+    if (extracted) onApplyToEditor(extracted);
+  }
+
+  const hasCodeBlock = hasResult && extractFirstCodeBlock(result as string) !== null;
+  const busy = sending || mainLoading;
+
+  return (
+    <div style={{
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 10,
+      background: "rgba(255,255,255,0.02)",
+      overflow: "hidden",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "8px 12px",
+        borderBottom: messages.length ? "1px solid rgba(255,255,255,0.06)" : "none",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <MessageCircle size={12} color="#6B7280" />
+          <span style={{ color: "#6B7280", fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3 }}>
+            ASK LEVI
+          </span>
+        </div>
+        {hasCodeBlock && (
+          <button onClick={applyCode}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "4px 9px",
+              background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
+              borderRadius: 7, color: "#3B82F6", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
+            }}>
+            <FolderInput size={10} /> Apply to Editor
+          </button>
+        )}
+      </div>
+
+      {messages.length > 0 && (
+        <div style={{
+          maxHeight: 140, overflowY: "auto", padding: "8px 12px",
+          display: "flex", flexDirection: "column", gap: 6,
+        }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{
+              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+              background: m.role === "user" ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.05)",
+              color: m.role === "user" ? "#93C5FD" : "#8B9CC4",
+              padding: "6px 11px", borderRadius: 9, fontSize: 11.5, maxWidth: "85%",
+              lineHeight: 1.5,
+            }}>
+              {m.content}
+            </div>
+          ))}
+          {sending && (
+            <div style={{
+              alignSelf: "flex-start", color: "#6B7280", fontSize: 11.5,
+              display: "flex", alignItems: "center", gap: 6, padding: "6px 11px",
+            }}>
+              <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> Thinking...
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 7, padding: 8 }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+          placeholder={hasResult
+            ? "Ask a question, or request a change..."
+            : "Ask anything about this code..."}
+          disabled={busy}
+          style={{
+            flex: 1, background: "rgba(6,10,16,0.8)",
+            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
+            padding: "8px 11px", color: "#F0F4FF", fontSize: 12.5,
+            outline: "none", fontFamily: "Inter, sans-serif",
+          }}
+        />
+        <button onClick={handleSend} disabled={busy || !input.trim()}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 34, flexShrink: 0,
+            background: (busy || !input.trim()) ? "rgba(255,255,255,0.04)" : "rgba(59,130,246,0.15)",
+            border: `1px solid ${(busy || !input.trim()) ? "rgba(255,255,255,0.07)" : "rgba(59,130,246,0.3)"}`,
+            borderRadius: 8,
+            color: (busy || !input.trim()) ? "#3D4F72" : "#3B82F6",
+            cursor: (busy || !input.trim()) ? "not-allowed" : "pointer",
+          }}>
+          {busy ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Send size={13} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ModelSelector({ value, onChange }: { value: LeviModel; onChange: (m: LeviModel) => void }) {
   return (
     <div style={{
@@ -588,7 +824,6 @@ export default function CodeWorkspace() {
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
-  const [customPrompt, setCustomPrompt] = useState("");
   const [copied, setCopied] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [showTargetDropdown, setShowTargetDropdown] = useState(false);
@@ -643,32 +878,6 @@ export default function CodeWorkspace() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setResult(null);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function runCustomPrompt() {
-    if (!customPrompt.trim()) return;
-    if (!code.trim()) { setError("Paste your code first."); return; }
-    setError("");
-    setActiveAction("custom");
-    setLoading(true);
-    setResult("");
-
-    const prompt = `${customPrompt}\n\nHere is the ${language} code:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
-    const askedPrompt = customPrompt;
-    setCustomPrompt(""); // clear input immediately, same as before
-
-    try {
-      await callLeviStream(prompt, model, (textSoFar) => {
-        setLoading(false);
-        setResult(textSoFar);
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
-      setResult(null);
-      setCustomPrompt(askedPrompt); // restore input so they can retry
     } finally {
       setLoading(false);
     }
@@ -1030,29 +1239,38 @@ export default function CodeWorkspace() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
+                  className="markdown-body"
                 >
-                  <div className="markdown-body">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {buildResult}
-                    </ReactMarkdown>
-                  </div>
-                  <CodeEditChat
-                    currentOutput={buildResult}
-                    setOutput={setBuildResult}
-                    model={model}
-                    pieceLabel="generated code"
-                    onApplyToEditor={(extractedCode) => {
-                      setCode(extractedCode);
-                      const detected = detectLanguage(extractedCode) || buildLanguage;
-                      setLanguage(detected);
-                      setView("have-code");
-                      setResult(null);
-                      setActiveAction(null);
-                    }}
-                  />
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {buildResult}
+                  </ReactMarkdown>
                 </motion.div>
               )}
             </div>
+
+            {/* Edit chat — fixed footer, always visible regardless of scroll */}
+            {!buildLoading && buildResult && (
+              <div style={{
+                flexShrink: 0, padding: "10px 16px",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+                background: "rgba(255,255,255,0.01)",
+              }}>
+                <CodeEditChat
+                  currentOutput={buildResult}
+                  setOutput={setBuildResult}
+                  model={model}
+                  pieceLabel="generated code"
+                  onApplyToEditor={(extractedCode) => {
+                    setCode(extractedCode);
+                    const detected = detectLanguage(extractedCode) || buildLanguage;
+                    setLanguage(detected);
+                    setView("have-code");
+                    setResult(null);
+                    setActiveAction(null);
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1412,61 +1630,36 @@ export default function CodeWorkspace() {
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
+                className="markdown-body"
               >
-                <div className="markdown-body">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {result}
-                  </ReactMarkdown>
-                </div>
-                <CodeEditChat
-                  currentOutput={result}
-                  setOutput={setResult}
-                  contextCode={code}
-                  model={model}
-                  pieceLabel={currentAction ? currentAction.label.toLowerCase() : "result"}
-                  onApplyToEditor={applyResultToEditor}
-                />
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {result}
+                </ReactMarkdown>
               </motion.div>
             )}
           </div>
 
-          {/* Custom prompt bar */}
+          {/* Unified chat — fixed footer, always visible regardless of scroll.
+              Handles both "ask a fresh question" (before any result exists)
+              and "ask a follow-up / request an edit" (once a result exists). */}
           <div style={{
-            flexShrink: 0,
-            padding: "10px 16px",
+            flexShrink: 0, padding: "10px 16px",
             borderTop: "1px solid rgba(255,255,255,0.05)",
             background: "rgba(255,255,255,0.01)",
-            display: "flex", gap: 8,
           }}>
-            <input
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runCustomPrompt()}
-              placeholder="Ask anything about this code..."
-              style={{
-                flex: 1, background: "rgba(6,10,16,0.8)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 10, padding: "9px 14px",
-                color: "#F0F4FF", fontSize: 13,
-                outline: "none", fontFamily: "Inter, sans-serif",
-              }}
+            <CodeChat
+              code={code}
+              language={language}
+              result={result}
+              setResult={setResult}
+              model={model}
+              pieceLabel={currentAction ? currentAction.label.toLowerCase() : "result"}
+              mainLoading={loading}
+              setMainLoading={setLoading}
+              setActiveAction={setActiveAction}
+              setError={setError}
+              onApplyToEditor={applyResultToEditor}
             />
-            <button
-              onClick={runCustomPrompt}
-              disabled={loading || !customPrompt.trim()}
-              style={{
-                padding: "9px 16px",
-                background: customPrompt.trim() && !loading
-                  ? "linear-gradient(135deg, #0057FF, #3B82F6)"
-                  : "rgba(255,255,255,0.04)",
-                border: "none", borderRadius: 10,
-                color: customPrompt.trim() && !loading ? "white" : "#3D4F72",
-                fontSize: 13, fontWeight: 600,
-                cursor: customPrompt.trim() && !loading ? "pointer" : "not-allowed",
-              }}
-            >
-              Ask
-            </button>
           </div>
         </div>
       </div>
